@@ -48,6 +48,17 @@ def list_categories():
             .all()
         )
 
+        # Nombre de transactions par catégorie, en une requête
+        # (categories.js recharge la liste depuis cette route et l'affiche)
+        from core.models.transactions import Transaction
+
+        counts = dict(
+            db.session.query(Transaction.category_id, db.func.count(Transaction.id))
+            .filter(Transaction.user_id == user_id)
+            .group_by(Transaction.category_id)
+            .all()
+        )
+
         categories_data = []
         for cat in categories:
             if hasattr(cat, "category_type") and cat.category_type:
@@ -66,6 +77,7 @@ def list_categories():
                     "color": cat.color or "#6c757d",
                     "icon": cat.icon or "folder",
                     "is_default": cat.is_default,
+                    "transaction_count": counts.get(cat.id, 0),
                     "created_at": (
                         cat.created_at.isoformat() if cat.created_at else None
                     ),

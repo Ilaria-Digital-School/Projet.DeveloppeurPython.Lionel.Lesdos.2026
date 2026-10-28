@@ -336,7 +336,7 @@ def create_app(config_name="default"):
     app.config.update(
         {
             # Configuration SMTP OVH
-            "MAIL_SERVER": os.environ.get("MAIL_SERVER", "ssl0.ovh.net"),
+            "MAIL_SERVER": os.environ.get("MAIL_SERVER", "smtp.example.com"),
             "MAIL_PORT": int(os.environ.get("MAIL_PORT", 587)),
             "MAIL_USE_TLS": True,
             "MAIL_USE_SSL": False,

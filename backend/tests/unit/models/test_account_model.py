@@ -107,6 +107,7 @@ class TestAccountToDict:
             "name",
             "account_type",
             "balance",
+            "overdraft_limit",
             "currency",
             "iban",
             "bic_swift",

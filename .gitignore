@@ -349,8 +349,6 @@ auto-save-list
 tramp
 .\#*
 
-# Windsurf
-.windsurf/
 
 
 # =======================================
@@ -453,3 +451,6 @@ context*
 
 # Setup scripts
 setup-repos.sh
+
+# Surcharge Docker locale (non versionnee)
+docker-compose.override.yml

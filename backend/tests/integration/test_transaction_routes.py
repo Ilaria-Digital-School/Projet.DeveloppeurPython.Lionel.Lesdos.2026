@@ -80,8 +80,8 @@ class TestTransactionImport:
         csv_content = (
             "Date;Description;Montant;Type\n"
             "01/06/2026;Courses;50,00;depense\n"
-            # Solde insuffisant : doit provoquer l'annulation totale
-            "02/06/2026;Achat impossible;999999,00;depense\n"
+            # Montant illisible : doit provoquer l'annulation totale
+            "02/06/2026;Achat impossible;abc;depense\n"
         )
         resp = self._post_csv(auth_client, csv_content)
         assert resp.status_code == 400
@@ -314,17 +314,89 @@ class TestTransactionImportTypesEtVirements:
         (t,) = self._transactions(user)
         assert t.category_id is None
 
-    def test_solde_insuffisant_cumule_sur_plusieurs_lignes(
-        self, auth_client, user, account, db_session
+    def test_solde_negatif_cumule_sur_plusieurs_lignes(
+        self, auth_client, user, account
     ):
-        """1 500 EUR, deux dépenses de 1 000 : la 2e ligne doit être refusée."""
-        db_session.commit()
+        """1 500 EUR, deux dépenses de 1 000 : le relevé est importé tel quel."""
         resp = self._post_csv(
             auth_client,
             "Date;Description;Montant;Type\n"
             "01/06/2026;Achat 1;1000,00;achat\n"
             "02/06/2026;Achat 2;1000,00;achat\n",
         )
-        assert resp.status_code == 400, resp.get_json()
-        assert self._transactions(user) == []
-        assert _solde(account.id) == Decimal("1500.00")
+        assert resp.status_code == 200, resp.get_json()
+        assert len(self._transactions(user)) == 2
+        assert _solde(account.id) == Decimal("-500.00")
+
+
+class TestTransactionFiltres:
+    """Filtres de la page Transactions (GET /api/v1/transactions et export)."""
+
+    @pytest.fixture
+    def transactions(self, db_session, user, account):
+        """Une transaction par variante de type présente en base."""
+        from datetime import datetime
+
+        from core.models.transactions import Transaction
+
+        lignes = [
+            ("income", datetime(2026, 4, 1)),
+            ("salaire", datetime(2026, 4, 2)),
+            ("expense", datetime(2026, 4, 3)),
+            ("achat", datetime(2026, 4, 30, 18, 45)),
+            ("loyer", datetime(2026, 5, 1)),
+            ("virement", datetime(2026, 5, 2)),
+        ]
+        for type_, quand in lignes:
+            db_session.add(
+                Transaction(
+                    user_id=user.id,
+                    account_id=account.id,
+                    montant=Decimal("10.00"),
+                    type_transaction=type_,
+                    libelle=f"Test {type_}",
+                    date_heure_transaction=quand,
+                    statut="comptabilise",
+                    devise="EUR",
+                )
+            )
+        db_session.flush()
+
+    @staticmethod
+    def _total(client, query):
+        resp = client.get(f"/api/v1/transactions?{query}")
+        assert resp.status_code == 200, resp.get_json()
+        return resp.get_json()["pagination"]["total"]
+
+    @pytest.mark.parametrize(
+        "type_, attendu", [("income", 2), ("expense", 3), ("transfer", 1)]
+    )
+    def test_filtre_type_couvre_toutes_les_variantes(
+        self, auth_client, transactions, type_, attendu
+    ):
+        assert self._total(auth_client, f"type={type_}") == attendu
+
+    def test_date_de_fin_incluse_toute_la_journee(self, auth_client, transactions):
+        # L'achat du 30/04 à 18h45 doit être compté
+        query = "date_from=01/04/2026&date_to=30/04/2026"
+        assert self._total(auth_client, query) == 4
+
+    def test_date_avec_heure_acceptee(self, auth_client, transactions):
+        # Format envoyé autrefois par le calendrier des filtres
+        assert self._total(auth_client, "date_from=01/05/2026%2000:00") == 2
+
+    def test_date_invalide_refusee(self, auth_client, transactions):
+        resp = auth_client.get("/api/v1/transactions?date_from=2026-05-01")
+        assert resp.status_code == 400
+
+    def test_pagination_renvoie_le_nombre_de_pages(self, auth_client, transactions):
+        resp = auth_client.get("/api/v1/transactions?per_page=4&page=2")
+        data = resp.get_json()
+        assert data["pagination"] == {"page": 2, "per_page": 4, "total": 6, "pages": 2}
+        assert len(data["transactions"]) == 2
+
+    def test_export_applique_le_meme_filtre_de_type(self, auth_client, transactions):
+        resp = auth_client.get("/api/v1/transactions/export?format=csv&type=income")
+        assert resp.status_code == 200
+        lignes = resp.get_data(as_text=True).strip().splitlines()
+        assert len(lignes) == 1 + 2  # en-tête + 2 revenus

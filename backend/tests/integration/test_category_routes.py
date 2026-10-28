@@ -31,6 +31,17 @@ class TestCategoryAPI:
             data = resp.get_json()
             assert data.get("status") == "success"
 
+    def test_api_list_compte_les_transactions(self, auth_client, transaction):
+        # categories.js affiche ce nombre en rechargeant la liste
+        resp = auth_client.get("/api/v1/categories")
+        assert resp.status_code == 200
+        (cat,) = [
+            c
+            for c in resp.get_json()["categories"]
+            if c["id"] == transaction.category_id
+        ]
+        assert cat["transaction_count"] == 1
+
 
 class TestCategoryRoutesSupprimees:
     """Les routes web CRUD catégories ont été supprimées (CRUD via /api/v1/categories)."""

@@ -20,6 +20,7 @@ from app.utils.errors import (
     handle_api_error,
 )
 from core.services.main import main_service
+from modules.dashboard import limiter as dashboard_limiter
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
@@ -56,6 +57,9 @@ def index():
 
 @main_bp.route("/healthz")
 @auth_limiter.exempt
+# Ses limites par défaut s'appliquent à toute l'appli, avec un compteur unique
+# pour les visiteurs non connectés : la sonde Docker l'épuisait (429)
+@dashboard_limiter.exempt
 def healthz():
     """Sonde de santé pour Docker (healthcheck) et la supervision.
 

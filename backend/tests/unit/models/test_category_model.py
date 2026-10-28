@@ -64,7 +64,7 @@ class TestCategoryDefaults:
         cat = Category(user_id=user.id, name="NoIcon", is_expense=True)
         db_session.add(cat)
         db_session.flush()
-        assert cat.icon == "fa-tag"
+        assert cat.icon == "tag"
 
     def test_custom_color(self, category):
         assert category.color == "#FF5733"

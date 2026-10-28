@@ -81,6 +81,7 @@ class AccountService:
                 name=account_create.name,
                 account_type=account_create.account_type,
                 balance=account_create.initial_balance,
+                overdraft_limit=account_create.overdraft_limit,
                 currency=account_create.currency,
                 bank_name=account_create.bank_name,
                 account_number=account_create.account_number,
@@ -574,7 +575,7 @@ class AccountService:
             target_account = cls.get_account(target_account_id, user_id)
 
             # Vérifier que le compte source a suffisamment de fonds
-            if source_account.balance < transfer.amount:
+            if not source_account.peut_debiter(transfer.amount):
                 raise ValidationError("Solde insuffisant pour effectuer le transfert")
 
             # Vérifier que les devises sont compatibles

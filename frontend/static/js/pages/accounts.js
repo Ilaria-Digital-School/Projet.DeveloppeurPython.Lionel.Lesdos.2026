@@ -101,6 +101,8 @@ function resetAccountForm() {
   if (accountTypeField) accountTypeField.value = 'checking'; // Valeur par défaut
   if (currencyField) currencyField.value = 'EUR'; // Valeur par défaut
   if (initialBalanceField) initialBalanceField.value = '0.00';
+  const overdraftField = form.querySelector('[name="overdraft_limit"]');
+  if (overdraftField) overdraftField.value = '0.00';
   if (isActiveField) isActiveField.checked = true; // Actif par défaut
   if (bankNameField) bankNameField.value = '';
   if (accountNumberField) accountNumberField.value = '';
@@ -672,6 +674,7 @@ function populateEditForm(accountId, accountData) {
   form.elements['name'].value = accountData.name || '';
   form.elements['account_type'].value = accountData.account_type || 'checking';
   form.elements['initial_balance'].value = accountData.balance || '0.00';
+  form.elements['overdraft_limit'].value = formatAmount(accountData.overdraft_limit);
   form.elements['currency'].value = accountData.currency || 'EUR';
   form.elements['bank_name'].value = accountData.bank_name || '';
   form.elements['account_number'].value = accountData.account_number || '';

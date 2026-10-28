@@ -72,7 +72,7 @@ class Config:
     SECURITY_SEND_REGISTER_EMAIL = False  # Désactivé en développement
 
     # Configuration des emails OVH
-    MAIL_SERVER = os.environ.get("MAIL_SERVER", "ssl0.ovh.net")
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.example.com")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ["true", "on", "1"]
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "contact@example.com")

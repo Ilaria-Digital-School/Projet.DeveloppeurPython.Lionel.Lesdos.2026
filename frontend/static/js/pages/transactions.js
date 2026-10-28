@@ -582,7 +582,7 @@ function prepareFormData(formData) {
 /**
  * Charge les transactions avec filtres
  */
-function loadTransactions() {
+function loadTransactions(page = 1) {
   
   const tbody = document.getElementById('transactions-list');
   if (!tbody) return;
@@ -609,6 +609,7 @@ function loadTransactions() {
       }
     }
   }
+  params.append('page', page);
   
   // Faire la requête
   fetch(`/api/v1/transactions?${params.toString()}`, {
@@ -626,6 +627,7 @@ function loadTransactions() {
   .then(data => {
     if (data.status === 'success' && Array.isArray(data.transactions)) {
       displayTransactions(data.transactions);
+      renderPagination(data.pagination);
     } else {
       throw new Error(data.message || 'Format de réponse invalide');
     }
@@ -641,6 +643,47 @@ function loadTransactions() {
         </td>
       </tr>
     `;
+  });
+}
+
+/**
+ * Pagination de la liste rechargée par les filtres : celle rendue par le
+ * serveur ne connaît pas les filtres et ramènerait à la liste complète
+ */
+function renderPagination(pagination) {
+  const container = document.getElementById('transactions-pagination');
+  if (!container) return;
+  if (!pagination || pagination.pages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const { page, per_page: perPage, total, pages } = pagination;
+  const first = (page - 1) * perPage + 1;
+  const last = Math.min(page * perPage, total);
+  const bouton = (cible, contenu, label) => `
+    <button type="button" data-page="${cible}" aria-label="${label}"
+            class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+      ${contenu}
+    </button>`;
+
+  container.innerHTML = `
+    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
+      <p class="text-sm text-gray-700">
+        Affichage de <span class="font-medium">${first}</span> à <span class="font-medium">${last}</span>
+        sur <span class="font-medium">${total}</span> transactions
+      </p>
+      <div class="flex items-center space-x-1">
+        ${page > 1 ? bouton(page - 1, '<i class="fas fa-chevron-left"></i>', 'Page précédente') : ''}
+        <span class="px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-300 rounded-md">
+          ${page} / ${pages}
+        </span>
+        ${page < pages ? bouton(page + 1, '<i class="fas fa-chevron-right"></i>', 'Page suivante') : ''}
+      </div>
+    </div>`;
+
+  container.querySelectorAll('button[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => loadTransactions(parseInt(btn.dataset.page, 10)));
   });
 }
 
@@ -961,9 +1004,12 @@ function initializeDatePickers() {
   const filterDateFrom = document.getElementById('filter-date-from');
   const filterDateTo = document.getElementById('filter-date-to');
   
+  // Les filtres portent sur des jours : l'API attend JJ/MM/AAAA, sans heure
+  const filterConfig = { ...config, dateFormat: 'd/m/Y', enableTime: false };
+
   if (filterDateFrom) {
     flatpickr(filterDateFrom, {
-      ...config,
+      ...filterConfig,
       defaultDate: null, // Pas de date par défaut pour les filtres
       onChange: function(selectedDates, dateStr, instance) {
         // Mettre à jour la date minimale du champ "date de fin"
@@ -976,7 +1022,7 @@ function initializeDatePickers() {
   
   if (filterDateTo) {
     flatpickr(filterDateTo, {
-      ...config,
+      ...filterConfig,
       defaultDate: null, // Pas de date par défaut pour les filtres
       onChange: function(selectedDates, dateStr, instance) {
         // Mettre à jour la date maximale du champ "date de début"

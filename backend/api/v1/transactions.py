@@ -43,6 +43,65 @@ logger = logging.getLogger(__name__)
 # ── LIST / CREATE ────────────────────────────────────────────────────────────
 
 
+# Valeurs du filtre « Type » de la page : chaque type générique couvre
+# toutes les variantes présentes en base (achat, ACHAT, expense, loyer...)
+_TYPES_FILTRE = {
+    "income": TransactionType.income_values,
+    "expense": TransactionType.expense_values,
+    "transfer": TransactionType.transfer_values,
+}
+
+
+def _date_filtre(valeur):
+    """'31/12/2026' ou '31/12/2026 14:30' (le calendrier ajoute l'heure) -> date."""
+    for fmt in ("%d/%m/%Y", "%d/%m/%Y %H:%M"):
+        try:
+            return datetime.strptime(valeur.strip(), fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(valeur)
+
+
+def _filtres_depuis_requete():
+    """Filtres communs à la liste et à l'export -> (filters, réponse d'erreur)."""
+    filters = {}
+
+    account_id = request.args.get("account")
+    if account_id:
+        from core.models.account import Account
+
+        acct = db.session.get(Account, int(account_id))
+        if not acct or acct.user_id != current_user.id:
+            return None, api_error("Compte non trouvé", 404)
+        filters["account_id"] = acct.id
+
+    category_id = request.args.get("category")
+    if category_id:
+        from core.models.category import Category
+
+        cat = db.session.get(Category, int(category_id))
+        if not cat or cat.user_id != current_user.id:
+            return None, api_error("Catégorie non trouvée", 404)
+        filters["category_id"] = cat.id
+
+    transaction_type = request.args.get("type")
+    if transaction_type:
+        valeurs = _TYPES_FILTRE.get(transaction_type)
+        filters["transaction_types"] = valeurs() if valeurs else [transaction_type]
+
+    for param, cle in (("date_from", "start_date"), ("date_to", "end_date")):
+        valeur = request.args.get(param)
+        if valeur:
+            try:
+                filters[cle] = _date_filtre(valeur)
+            except ValueError:
+                return None, api_error(
+                    f"Format de {param} invalide (attendu: JJ/MM/AAAA)", 400
+                )
+
+    return filters, None
+
+
 @api_v1_bp.route("/transactions", methods=["GET"])
 @login_required
 def list_transactions():
@@ -51,56 +110,9 @@ def list_transactions():
         service = TransactionService()
         page = request.args.get("page", 1, type=int)
         per_page = min(max(request.args.get("per_page", 10, type=int), 1), 100)
-        filters = {}
-
-        account_id = request.args.get("account")
-        if account_id:
-            from core.models.account import Account
-
-            acct = db.session.get(Account, int(account_id))
-            if acct and acct.user_id == current_user.id:
-                filters["account_id"] = int(account_id)
-            else:
-                return api_error("Compte non trouvé", 404)
-
-        category_id = request.args.get("category")
-        if category_id:
-            from core.models.category import Category
-
-            cat = db.session.get(Category, int(category_id))
-            if cat and cat.user_id == current_user.id:
-                filters["category_id"] = int(category_id)
-            else:
-                return api_error("Catégorie non trouvée", 404)
-
-        transaction_type = request.args.get("type")
-        if transaction_type:
-            type_map = {
-                "income": ["SALAIRE"],
-                "expense": ["ACHAT", "expense"],
-                "transfer": ["VIREMENT"],
-            }
-            filters["transaction_types"] = type_map.get(
-                transaction_type, [transaction_type]
-            )
-
-        date_from = request.args.get("date_from")
-        if date_from:
-            try:
-                filters["start_date"] = datetime.strptime(date_from, "%d/%m/%Y").date()
-            except ValueError:
-                return api_error(
-                    "Format de date_from invalide (attendu: DD/MM/YYYY)", 400
-                )
-
-        date_to = request.args.get("date_to")
-        if date_to:
-            try:
-                filters["end_date"] = datetime.strptime(date_to, "%d/%m/%Y").date()
-            except ValueError:
-                return api_error(
-                    "Format de date_to invalide (attendu: DD/MM/YYYY)", 400
-                )
+        filters, erreur = _filtres_depuis_requete()
+        if erreur:
+            return erreur
 
         transactions, total = service.get_transactions(
             user_id=current_user.id, page=page, per_page=per_page, **filters
@@ -140,7 +152,12 @@ def list_transactions():
         return api_success(
             {
                 "transactions": transactions_data,
-                "pagination": {"page": page, "total": total},
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": -(-total // per_page),
+                },
             }
         )
 
@@ -647,7 +664,10 @@ def import_transactions():
 
                 # Import atomique : flush sans commit, le commit final
                 # n'a lieu que si toutes les lignes sont valides
-                service.create_transaction(**tx_data, commit=False)
+                # Opérations déjà passées par la banque : pas de refus pour solde insuffisant
+                service.create_transaction(
+                    **tx_data, commit=False, verifier_solde=False
+                )
                 imported_count += 1
 
             except SQLAlchemyError as e:
@@ -701,39 +721,9 @@ def export_transactions():
         if export_format not in ["csv", "xlsx", "pdf"]:
             return api_error("Format non supporté (csv, xlsx, pdf)", 400)
 
-        filters = {}
-        if request.args.get("account"):
-            from core.models.account import Account
-
-            acct = db.session.get(Account, int(request.args.get("account")))
-            if acct and acct.user_id == current_user.id:
-                filters["account_id"] = acct.id
-            else:
-                return api_error("Compte non trouvé", 404)
-        if request.args.get("category"):
-            from core.models.category import Category
-
-            cat = db.session.get(Category, int(request.args.get("category")))
-            if cat and cat.user_id == current_user.id:
-                filters["category_id"] = cat.id
-            else:
-                return api_error("Catégorie non trouvée", 404)
-        if request.args.get("type"):
-            filters["transaction_type"] = request.args.get("type")
-        if request.args.get("date_from"):
-            try:
-                filters["start_date"] = datetime.strptime(
-                    request.args.get("date_from"), "%d/%m/%Y"
-                ).date()
-            except ValueError:
-                return api_error("Format date_from invalide (DD/MM/YYYY)", 400)
-        if request.args.get("date_to"):
-            try:
-                filters["end_date"] = datetime.strptime(
-                    request.args.get("date_to"), "%d/%m/%Y"
-                ).date()
-            except ValueError:
-                return api_error("Format date_to invalide (DD/MM/YYYY)", 400)
+        filters, erreur = _filtres_depuis_requete()
+        if erreur:
+            return erreur
 
         MAX_EXPORT_ROWS = 5000
         service = TransactionService()

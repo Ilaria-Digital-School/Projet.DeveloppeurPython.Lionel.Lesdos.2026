@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (!emptyMsg) {
                             emptyMsg = document.createElement('div');
                             emptyMsg.className = 'empty-chart-msg flex items-center justify-center h-full text-gray-400 dark:text-gray-500';
-                            emptyMsg.innerHTML = '<div class="text-center"><i class="fas fa-chart-pie text-4xl mb-2"></i><p>Aucune dépense enregistrée</p></div>';
+                            emptyMsg.innerHTML = '<div class="text-center"><i class="fas fa-chart-pie text-4xl mb-2"></i><p>Aucune dépense sur cette période</p></div>';
                             parent.appendChild(emptyMsg);
                         }
                     }
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (!emptyMsg) {
                             emptyMsg = document.createElement('div');
                             emptyMsg.className = 'empty-chart-msg flex items-center justify-center h-full text-gray-400 dark:text-gray-500';
-                            emptyMsg.innerHTML = '<div class="text-center"><i class="fas fa-chart-bar text-4xl mb-2"></i><p>Aucune transaction enregistrée</p></div>';
+                            emptyMsg.innerHTML = '<div class="text-center"><i class="fas fa-chart-bar text-4xl mb-2"></i><p>Aucune transaction sur cette période</p></div>';
                             parent.appendChild(emptyMsg);
                         }
                     }
@@ -460,6 +460,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button data-format="excel" class="dl-opt w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
                             <i class="fas fa-file-excel text-green-500 w-4 mr-2"></i>Excel
                         </button>
+                        <button data-format="excel-charts" class="dl-opt w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-chart-bar text-green-400 w-4 mr-2"></i>Excel + graphiques
+                        </button>
                         <button data-format="csv" class="dl-opt w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
                             <i class="fas fa-file-csv text-blue-500 w-4 mr-2"></i>CSV
                         </button>
@@ -482,6 +485,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const fmt = btn.dataset.format;
                         if (fmt === 'pdf-charts') {
                             downloadReport(report.id, 'pdf', true);
+                        } else if (fmt === 'excel-charts') {
+                            downloadReport(report.id, 'excel', true);
                         } else {
                             downloadReport(report.id, fmt);
                         }
@@ -973,6 +978,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (customDateRangeDiv) {
                 customDateRangeDiv.classList.toggle('hidden', this.value !== 'custom');
             }
+            // Comme le type de rapport : la période met les graphiques à jour
+            // (période personnalisée : dès que les deux dates sont saisies)
+            if (this.value !== 'custom') initCharts();
+        });
+
+        ['start-date', 'end-date'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', function() {
+                const start = document.getElementById('start-date')?.value;
+                const end = document.getElementById('end-date')?.value;
+                if (dateRangePicker.value === 'custom' && start && end) initCharts();
+            });
         });
     }
     const dateRangeModalSelect = document.getElementById('date-range-modal');
@@ -1182,6 +1198,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (format === 'pdf-charts') {
             apiFormat = 'pdf';
             includeCharts = true;
+        } else if (format === 'excel-charts') {
+            apiFormat = 'excel';
+            includeCharts = true;
         }
 
         let exportUrl = `${API_BASE_URL}/export?format=${apiFormat}&report_type=${reportType}&date_range=${dateRange}`;
@@ -1191,11 +1210,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const formatLabels = {
             'pdf': 'PDF', 'pdf-charts': 'PDF avec graphiques',
-            'excel': 'Excel', 'csv': 'CSV', 'json': 'JSON'
+            'excel': 'Excel', 'excel-charts': 'Excel avec graphiques',
+            'csv': 'CSV', 'json': 'JSON'
         };
         const formatExtensions = {
             'pdf': 'pdf', 'pdf-charts': 'pdf',
-            'excel': 'xlsx', 'csv': 'csv', 'json': 'json'
+            'excel': 'xlsx', 'excel-charts': 'xlsx', 'csv': 'csv', 'json': 'json'
         };
 
         try {

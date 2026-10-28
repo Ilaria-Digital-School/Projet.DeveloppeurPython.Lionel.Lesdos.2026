@@ -71,4 +71,8 @@ class TestHealthz:
         assert resp.get_json() == {"status": "error"}  # aucun détail exposé
 
     def test_exempte_de_la_limite_de_requetes(self, client):
-        assert all(client.get("/healthz").status_code == 200 for _ in range(30))
+        # Au-delà de la limite horaire par défaut (500/h, compteur partagé par
+        # tous les visiteurs non connectés) : la sonde Docker, à 120 appels
+        # par heure, passait en 429 et le conteneur en "unhealthy"
+        codes = {client.get("/healthz").status_code for _ in range(501)}
+        assert codes == {200}

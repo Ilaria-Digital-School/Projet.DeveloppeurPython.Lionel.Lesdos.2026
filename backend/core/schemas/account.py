@@ -61,6 +61,9 @@ class AccountCreate(AccountBase):
     initial_balance: Decimal = Field(
         Decimal("0.00"), ge=0, description="Solde initial du compte (toujours positif)"
     )
+    overdraft_limit: Decimal = Field(
+        Decimal("0.00"), ge=0, description="Découvert autorisé (0 = aucun)"
+    )
     bank_name: Optional[constr(max_length=100)] = Field(
         None, description="Nom de l'institution bancaire"
     )
@@ -159,6 +162,9 @@ class AccountUpdate(AccountBase):
     )
     balance: Optional[Decimal] = Field(
         None, ge=0, description="Nouveau solde du compte"
+    )
+    overdraft_limit: Optional[Decimal] = Field(
+        None, ge=0, description="Découvert autorisé (0 = aucun)"
     )
 
     model_config = ConfigDict(

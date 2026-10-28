@@ -68,8 +68,9 @@ class Category(db.Model):
     icon = db.Column(
         "icon",
         db.String(50),
-        default="fa-tag",
-        info={"description": "Classe CSS de l'icône (ex: fa-tag)"},
+        # Nom Font Awesome sans préfixe : les templates ajoutent « fa- »
+        default="tag",
+        info={"description": "Nom de l'icône Font Awesome, sans préfixe (ex: tag)"},
     )
 
     # Type de catégorie (dépense ou revenu)

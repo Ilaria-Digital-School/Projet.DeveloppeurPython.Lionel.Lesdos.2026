@@ -226,7 +226,8 @@
     </button>
   </div>
   
-  <!-- Pagination -->
+  <!-- Pagination (remplacée par transactions.js quand les filtres rechargent la liste) -->
+  <div id="transactions-pagination">
   {% if pagination and pagination.pages > 1 %}
   <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
     <div class="flex-1 flex justify-between sm:hidden">
@@ -285,6 +286,7 @@
     </div>
   </div>
   {% endif %}
+  </div>
 
   <style>
     /* Styles pour les modals */

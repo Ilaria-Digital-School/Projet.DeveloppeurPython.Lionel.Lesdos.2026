@@ -6,7 +6,7 @@ y compris la création, la mise à jour, la suppression et les requêtes complex
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
@@ -76,6 +76,7 @@ class TransactionService:
         notes: str = None,
         status: str = "completed",
         commit: bool = True,
+        verifier_solde: bool = True,
     ) -> Transaction:
         """
         Crée une nouvelle transaction financière.
@@ -95,6 +96,8 @@ class TransactionService:
             commit: Si False, flush sans commit et sans notifications
                 (pour les imports en lot atomiques — l'appelant gère
                 le commit/rollback final)
+            verifier_solde: Si False, accepte un débit qui dépasse le solde
+                et le découvert autorisé (import de relevé bancaire)
 
         Returns:
             Transaction: L'objet Transaction créé
@@ -166,9 +169,13 @@ class TransactionService:
             and destination_account is not None
         )
 
-        # Vérification du solde pour les dépenses et les virements (débit du compte source)
-        if transaction_type in TransactionType.expense_values() or is_transfer:
-            if account.balance < (amount + fees):
+        # Vérification du solde pour les dépenses et les virements (débit du compte source).
+        # Désactivée pour l'import d'un relevé : la banque a déjà passé l'opération,
+        # même si elle a mis le compte à découvert sans autorisation.
+        if verifier_solde and (
+            transaction_type in TransactionType.expense_values() or is_transfer
+        ):
+            if not account.peut_debiter(amount + fees):
                 raise InsufficientFundsError(
                     "Solde insuffisant pour effectuer cette opération"
                 )
@@ -496,7 +503,13 @@ class TransactionService:
         if start_date:
             query = query.filter(Transaction.date_heure_transaction >= start_date)
         if end_date:
-            query = query.filter(Transaction.date_heure_transaction <= end_date)
+            # Une date seule couvre toute la journée (sinon <= minuit l'exclut)
+            if not isinstance(end_date, datetime):
+                query = query.filter(
+                    Transaction.date_heure_transaction < end_date + timedelta(days=1)
+                )
+            else:
+                query = query.filter(Transaction.date_heure_transaction <= end_date)
         if account_id:
             query = query.filter(
                 or_(

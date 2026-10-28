@@ -62,6 +62,30 @@ class TestSoldeCreation:
             _creer(user, account, "2000.00", "achat")
         assert _solde(account.id) == SOLDE_INITIAL
 
+    def test_solde_insuffisant_cumule_dans_un_lot(self, user, account):
+        """Lot non commité (import) : la 2e dépense relit le solde déjà débité."""
+        from core.services.transactions.transaction_services import (
+            InsufficientFundsError,
+        )
+
+        TransactionService.create_transaction(
+            user_id=user.id,
+            account_id=account.id,
+            amount=Decimal("1000.00"),
+            transaction_type="achat",
+            description="Achat 1",
+            commit=False,
+        )
+        with pytest.raises(InsufficientFundsError):
+            TransactionService.create_transaction(
+                user_id=user.id,
+                account_id=account.id,
+                amount=Decimal("1000.00"),
+                transaction_type="achat",
+                description="Achat 2",
+                commit=False,
+            )
+
 
 class TestSoldeSuppression:
     """Supprimer une transaction annule exactement son effet sur le solde."""
@@ -213,3 +237,68 @@ class TestSoldeVirement:
         resp = _virement_api(auth_client, account, account)
         assert resp.status_code == 400
         assert _solde(account.id) == SOLDE_INITIAL
+
+
+class TestDecouvertAutorise:
+    """Un débit est accepté tant que le solde reste au-dessus de -découvert."""
+
+    def test_depense_dans_le_decouvert_acceptee(self, user, account, db_session):
+        account.overdraft_limit = Decimal("200.00")
+        db_session.flush()
+        _creer(user, account, "1600.00", "achat", frais="50.00")
+        assert _solde(account.id) == Decimal("-150.00")
+
+    def test_depense_au_dela_du_decouvert_refusee(self, user, account, db_session):
+        from core.services.transactions.transaction_services import (
+            InsufficientFundsError,
+        )
+
+        account.overdraft_limit = Decimal("200.00")
+        db_session.flush()
+        with pytest.raises(InsufficientFundsError):
+            _creer(user, account, "1700.01", "achat")
+        assert _solde(account.id) == SOLDE_INITIAL
+
+    def test_virement_dans_le_decouvert_accepte(
+        self, auth_client, account, livret, db_session
+    ):
+        account.overdraft_limit = Decimal("100.00")
+        db_session.flush()
+        resp = _virement_api(auth_client, account, livret, montant="1550.00")
+        assert resp.status_code == 201
+        assert _solde(account.id) == Decimal("-50.00")
+        assert _solde(livret.id) == Decimal("1750.00")
+
+    def test_creation_compte_avec_decouvert(self, auth_client):
+        from core.models.account import Account
+
+        resp = auth_client.post(
+            "/api/v1/comptes",
+            json={"name": "Courant découvert", "overdraft_limit": "300"},
+        )
+        assert resp.status_code == 201
+        acc = db.session.get(Account, resp.get_json()["account_id"])
+        assert acc.overdraft_limit == Decimal("300.00")
+
+        detail = auth_client.get(f"/api/v1/comptes/{acc.id}").get_json()
+        assert detail["account"]["overdraft_limit"] == 300.0
+
+    def test_modification_du_decouvert(self, auth_client, account):
+        resp = auth_client.put(
+            f"/api/v1/comptes/{account.id}",
+            json={"name": account.name, "overdraft_limit": "150.50"},
+        )
+        assert resp.status_code == 200
+        db.session.expire_all()
+        assert account.overdraft_limit == Decimal("150.50")
+        # La modification du découvert ne touche pas au solde
+        assert _solde(account.id) == SOLDE_INITIAL
+
+    def test_decouvert_negatif_refuse(self, auth_client, account):
+        resp = auth_client.put(
+            f"/api/v1/comptes/{account.id}",
+            json={"name": account.name, "overdraft_limit": "-10"},
+        )
+        assert resp.status_code == 400
+        db.session.expire_all()
+        assert account.overdraft_limit == Decimal("0.00")

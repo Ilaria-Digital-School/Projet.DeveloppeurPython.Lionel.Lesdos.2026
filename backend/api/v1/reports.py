@@ -474,95 +474,479 @@ def _add_income_vs_expenses_chart(elements, data):
     elements.append(img)
 
 
-def _build_excel_report(report_type, data, start_date, end_date):
-    """Construit un fichier Excel (.xlsx) pour un rapport."""
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
+# Export Excel : un classeur de plusieurs onglets reliés par des formules.
+# « Opérations » contient le détail ; « Par catégorie », « Par mois » et
+# « Synthèse » en sont calculés (SUMIFS) : corriger ou reclasser une opération
+# dans Excel met tout le classeur à jour.
+_XL_POLICE = "Arial"
+_XL_BLEU = "1F4E79"
+_XL_BLEU_CLAIR = "DDEBF7"
+_XL_GRIS = "595959"
+_XL_BANDE = "F2F2F2"
+_XL_EUR = '#,##0.00 "€";[Red]-#,##0.00 "€";"-"'
+_XL_PCT = '0.0%;[Red]-0.0%;"-"'
+_XL_COULEURS = {"revenus": "10B981", "depenses": "EF4444", "solde": "1F4E79"}
+_XL_MOIS = [
+    "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+    "août", "septembre", "octobre", "novembre", "décembre",
+]  # fmt: skip
+_XL_MAX_OPERATIONS = 20000
 
-    wb = Workbook()
-    ws = wb.active
+_XL_TITRES = {
+    "expenses": "Dépenses par catégorie",
+    "expenses_by_category": "Dépenses par catégorie",
+    "expenses-by-category": "Dépenses par catégorie",
+    "income-vs-expenses": "Revenus et dépenses",
+    "cashflow": "Flux de trésorerie",
+}
 
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(
-        start_color="4472C4", end_color="4472C4", fill_type="solid"
+
+def _xl_type(type_transaction):
+    """Type affiché dans l'onglet Opérations (critère des formules SUMIFS)."""
+    if type_transaction in TransactionType.income_values():
+        return "Revenu"
+    if type_transaction in TransactionType.expense_values():
+        return "Dépense"
+    if type_transaction in TransactionType.transfer_values():
+        return "Virement"
+    return "Autre"
+
+
+def _collect_export_data(user_id, start_date, end_date):
+    """Données des exports Excel et JSON : dépenses par catégorie (ordre
+    décroissant), mois de la période et opérations de la période."""
+    from sqlalchemy.orm import aliased
+
+    from core.models.account import Account
+
+    Destination = aliased(Account)
+    rows = (
+        db.session.query(
+            Transaction.id,
+            Transaction.date_heure_transaction,
+            Transaction.libelle,
+            func.coalesce(Category.name, "Non catégorisée"),
+            Account.name,
+            Destination.name,
+            Transaction.type_transaction,
+            Transaction.montant,
+            Transaction.notes,
+        )
+        .select_from(Transaction)
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .outerjoin(Account, Transaction.account_id == Account.id)
+        .outerjoin(Destination, Transaction.destination_account_id == Destination.id)
+        .filter(
+            Transaction.user_id == user_id,
+            func.date(Transaction.date_heure_transaction) >= start_date,
+            func.date(Transaction.date_heure_transaction) <= end_date,
+        )
+        .order_by(Transaction.date_heure_transaction, Transaction.id)
+        .limit(_XL_MAX_OPERATIONS)
+        .all()
     )
+    operations = [
+        {
+            "id": id_,
+            "date": quand.date() if quand else None,
+            "libelle": libelle or "",
+            "categorie": categorie,
+            "compte": compte or "",
+            "destination": destination,
+            "type": _xl_type(type_),
+            "montant": abs(float(montant or 0)),
+            "notes": notes,
+        }
+        for id_, quand, libelle, categorie, compte, destination, type_, montant, notes in rows
+    ]
 
-    type_labels = {
-        "expenses": "Depenses par Categorie",
-        "expenses_by_category": "Depenses par Categorie",
-        "expenses-by-category": "Depenses par Categorie",
-        "income-vs-expenses": "Revenus vs Depenses",
-        "cashflow": "Flux de Tresorerie",
+    mois = []
+    annee, numero = start_date.year, start_date.month
+    while (annee, numero) <= (end_date.year, end_date.month):
+        mois.append((annee, numero))
+        annee, numero = (annee + 1, 1) if numero == 12 else (annee, numero + 1)
+
+    return {
+        "categories": [
+            i["category"]
+            for i in _generate_expenses_report(user_id, start_date, end_date)["items"]
+        ],
+        "mois": mois,
+        "operations": operations,
     }
-    ws.title = type_labels.get(report_type, "Rapport")[:31]
 
-    # En-tête du rapport
-    ws.append([f'Rapport: {type_labels.get(report_type, "Financier")}'])
-    ws.append(
-        [
-            f'Periode: du {start_date.strftime("%d/%m/%Y")} au {end_date.strftime("%d/%m/%Y")}'
-        ]
+
+def _xl_entete_feuille(ws, titre, sous_titre):
+    from openpyxl.styles import Font
+
+    ws.sheet_view.showGridLines = False
+    ws["A1"] = titre
+    ws["A1"].font = Font(name=_XL_POLICE, size=16, bold=True, color=_XL_BLEU)
+    ws["A2"] = sous_titre
+    ws["A2"].font = Font(name=_XL_POLICE, size=10, color=_XL_GRIS)
+    ws.row_dimensions[1].height = 24
+
+
+def _xl_tableau(ws, ligne, entetes, lignes, formats, total=None):
+    """Tableau à partir de `ligne` : en-tête, lignes en bandes, puis TOTAL si
+    `total` est fourni (fonction (lettre, première, dernière) -> formule ou
+    None). Retourne (première ligne, dernière ligne, ligne du total)."""
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    trait = Side(style="thin", color="BFBFBF")
+    for col, texte in enumerate(entetes, 1):
+        cell = ws.cell(row=ligne, column=col, value=texte)
+        cell.font = Font(name=_XL_POLICE, bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", start_color=_XL_BLEU)
+        # Titre aligné comme sa colonne : texte à gauche, nombres à droite
+        texte_ou_date = formats[col - 1] in ("@", "dd/mm/yyyy")
+        cell.alignment = Alignment(
+            horizontal="left" if texte_ou_date else "right", vertical="center"
+        )
+    ws.row_dimensions[ligne].height = 20
+
+    premiere = ligne + 1
+    for i, valeurs in enumerate(lignes):
+        for col, valeur in enumerate(valeurs, 1):
+            cell = ws.cell(row=premiere + i, column=col, value=valeur)
+            cell.font = Font(name=_XL_POLICE)
+            cell.number_format = formats[col - 1]
+            cell.border = Border(bottom=trait)
+            if i % 2:
+                cell.fill = PatternFill("solid", start_color=_XL_BANDE)
+    derniere = premiere + len(lignes) - 1
+
+    r_total = None
+    if total:
+        r_total = derniere + 1
+        for col in range(1, len(entetes) + 1):
+            formule = (
+                "TOTAL"
+                if col == 1
+                else total(get_column_letter(col), premiere, derniere)
+            )
+            cell = ws.cell(row=r_total, column=col, value=formule)
+            cell.font = Font(name=_XL_POLICE, bold=True)
+            cell.number_format = formats[col - 1]
+            cell.border = Border(top=Side(style="thin"), bottom=Side(style="double"))
+    return premiere, derniere, r_total
+
+
+def _xl_largeurs(ws, largeurs):
+    from openpyxl.utils import get_column_letter
+
+    for col, largeur in enumerate(largeurs, 1):
+        ws.column_dimensions[get_column_letter(col)].width = largeur
+
+
+def _xl_impression(ws, titre, paysage=False, ligne_titres=None):
+    """A4, largeur ajustée à la page, en-tête et pied de page."""
+    ws.page_setup.orientation = "landscape" if paysage else "portrait"
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_margins.left = ws.page_margins.right = 0.5
+    if ligne_titres:
+        ws.print_title_rows = f"{ligne_titres}:{ligne_titres}"
+    ws.oddHeader.left.text = titre
+    ws.oddFooter.left.text = "Gestion Budgétaire"
+    ws.oddFooter.right.text = "Page &P / &N"
+
+
+def _xl_feuille_operations(wb, operations, periode):
+    """Détail des opérations, avec filtres. Retourne les plages
+    (colonne -> 'Opérations'!$X$5:$X$n) utilisées par les formules."""
+    from openpyxl.styles import Alignment, Font
+
+    ws = wb.create_sheet("Opérations")
+    _xl_entete_feuille(ws, "Opérations", periode)
+    lignes = [
+        [op["date"], op["libelle"], op["categorie"], op["compte"], op["type"],
+         op["montant"]]  # fmt: skip
+        for op in operations
+    ]
+    # Mise en forme directe (pas un style de tableau Excel : LibreOffice et
+    # les aperçus ne l'affichent pas)
+    _xl_tableau(
+        ws,
+        4,
+        ["Date", "Libellé", "Catégorie", "Compte", "Type", "Montant"],
+        lignes,
+        ["dd/mm/yyyy", "@", "@", "@", "@", _XL_EUR],
     )
-    ws.append([f'Genere le {datetime.now().strftime("%d/%m/%Y a %H:%M")}'])
-    ws.append([])
+    derniere = 4 + max(len(operations), 1)
+    if operations:
+        ws.auto_filter.ref = f"A4:F{derniere}"
+        for r in range(5, derniere + 1):
+            ws.cell(row=r, column=1).alignment = Alignment(horizontal="center")
+    else:
+        ws["A5"] = "Aucune opération sur la période"
+        ws["A5"].font = Font(name=_XL_POLICE, italic=True, color=_XL_GRIS)
 
-    if report_type in ("expenses", "expenses_by_category", "expenses-by-category"):
-        headers = ["Categorie", "Montant (EUR)", "Pourcentage (%)"]
-        ws.append(headers)
-        row_idx = ws.max_row
-        for col_idx, _ in enumerate(headers, 1):
-            cell = ws.cell(row=row_idx, column=col_idx)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center")
+    _xl_largeurs(ws, [13, 46, 36, 20, 11, 15])
+    ws.freeze_panes = "A5"
+    _xl_impression(ws, "Opérations", ligne_titres=4)
+    return {
+        lettre: f"'Opérations'!${lettre}$5:${lettre}${derniere}" for lettre in "ACEF"
+    }
 
-        items = data.get("items", [])
-        for item in items:
-            ws.append([item["category"], item["amount"], item["percentage"]])
 
-        ws.append([])
-        ws.append(["TOTAL", data.get("total", 0), "100%"])
+def _xl_feuille_categories(wb, categories, plages, periode, include_charts):
+    from openpyxl.styles import Font
 
-        # Auto-ajuster les colonnes
-        ws.column_dimensions["A"].width = 25
-        ws.column_dimensions["B"].width = 15
-        ws.column_dimensions["C"].width = 15
+    ws = wb.create_sheet("Par catégorie")
+    _xl_entete_feuille(ws, "Dépenses par catégorie", periode)
+    if not categories:
+        ws["A4"] = "Aucune dépense sur la période"
+        ws["A4"].font = Font(name=_XL_POLICE, italic=True, color=_XL_GRIS)
+        _xl_largeurs(ws, [34])
+        return ws, None, None, None
 
-    elif report_type in ("income-vs-expenses", "cashflow"):
-        headers = ["Periode", "Revenus (EUR)", "Depenses (EUR)", "Solde (EUR)"]
-        ws.append(headers)
-        row_idx = ws.max_row
-        for col_idx, _ in enumerate(headers, 1):
-            cell = ws.cell(row=row_idx, column=col_idx)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center")
+    n_total = 5 + len(categories)
+    somme = f'SUMIFS({plages["F"]},{plages["C"]},A{{r}},{plages["E"]},"Dépense")'
+    lignes = [
+        [
+            nom,
+            "=" + somme.format(r=r),
+            f"=IF($B${n_total}=0,0,B{r}/$B${n_total})",
+            f'=COUNTIFS({plages["C"]},A{r},{plages["E"]},"Dépense")',
+        ]
+        for r, nom in enumerate(categories, 5)
+    ]
+    premiere, derniere, r_total = _xl_tableau(
+        ws,
+        4,
+        ["Catégorie", "Montant", "Part", "Opérations"],
+        lignes,
+        ["@", _XL_EUR, _XL_PCT, "0"],
+        lambda c, a, b: f"=SUM({c}{a}:{c}{b})",
+    )
+    _xl_largeurs(ws, [34, 15, 9, 12])
+    ws.freeze_panes = "A5"
+    _xl_impression(ws, "Dépenses par catégorie", paysage=include_charts, ligne_titres=4)
+    if include_charts:
+        _add_expenses_excel_chart(ws, premiere, derniere, ws, "F4")
+    return ws, premiere, derniere, r_total
 
-        periods = data.get("periods", [])
-        incomes = data.get("income", [])
-        expenses = data.get("expenses", [])
-        for p, inc, exp in zip(periods, incomes, expenses):
-            ws.append([p, inc, exp, inc - exp])
 
-        ws.append([])
-        ws.append(
-            [
-                "TOTAL",
-                data.get("total_income", 0),
-                data.get("total_expenses", 0),
-                data.get("savings", 0),
-            ]
+def _xl_feuille_mois(wb, mois, plages, periode, include_charts):
+    ws = wb.create_sheet("Par mois")
+    _xl_entete_feuille(ws, "Revenus et dépenses par mois", periode)
+
+    def somme(type_, annee, numero):
+        suivant = (annee + 1, 1) if numero == 12 else (annee, numero + 1)
+        return (
+            f'SUMIFS({plages["F"]},{plages["E"]},"{type_}",'
+            f'{plages["A"]},">="&DATE({annee},{numero},1),'
+            f'{plages["A"]},"<"&DATE({suivant[0]},{suivant[1]},1))'
         )
 
-        ws.column_dimensions["A"].width = 15
-        ws.column_dimensions["B"].width = 15
-        ws.column_dimensions["C"].width = 15
-        ws.column_dimensions["D"].width = 15
+    lignes = [
+        [
+            f"{_XL_MOIS[numero - 1]} {annee}",
+            "=" + somme("Revenu", annee, numero),
+            "=" + somme("Dépense", annee, numero),
+            f"=B{r}-C{r}",
+            f"=D{r}" if r == 5 else f"=E{r - 1}+D{r}",
+        ]
+        for r, (annee, numero) in enumerate(mois, 5)
+    ]
+    premiere, derniere, r_total = _xl_tableau(
+        ws,
+        4,
+        ["Mois", "Revenus", "Dépenses", "Solde du mois", "Solde cumulé"],
+        lignes,
+        ["@", _XL_EUR, _XL_EUR, _XL_EUR, _XL_EUR],
+        lambda c, a, b: f"=E{b}" if c == "E" else f"=SUM({c}{a}:{c}{b})",
+    )
+    _xl_largeurs(ws, [17, 15, 15, 16, 16])
+    ws.freeze_panes = "A5"
+    _xl_impression(ws, "Revenus et dépenses par mois", paysage=include_charts,
+                   ligne_titres=4)  # fmt: skip
+    if include_charts:
+        _add_income_vs_expenses_excel_chart(ws, 4, derniere, ws, "G4")
+    return ws, premiere, derniere, r_total
+
+
+def _xl_feuille_synthese(ws, periode, mois, cat, plages, include_charts):
+    """Chiffres clés et 5 plus fortes dépenses, calculés depuis les autres onglets."""
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    ws_mois, m_premiere, m_derniere, m_total = mois
+    ws_cat, c_premiere, c_derniere, _ = cat
+    _xl_entete_feuille(ws, "Synthèse", periode)
+
+    indicateurs = [
+        ("Revenus", f"='Par mois'!B{m_total}", _XL_EUR),
+        ("Dépenses", f"='Par mois'!C{m_total}", _XL_EUR),
+        ("Solde", "=B5-B6", _XL_EUR),
+        ("Taux d'épargne", "=IF(B5=0,0,B7/B5)", _XL_PCT),
+        ("Opérations", f'=COUNT({plages["A"]})', "0"),
+    ]
+    trait = Side(style="thin", color="BFBFBF")
+    ws["A4"] = "Chiffres clés"
+    ws["A4"].font = Font(name=_XL_POLICE, bold=True, size=12, color=_XL_BLEU)
+    for i, (libelle, formule, fmt) in enumerate(indicateurs):
+        r = 5 + i
+        a, b = ws.cell(row=r, column=1, value=libelle), ws.cell(
+            row=r, column=2, value=formule
+        )
+        a.font = Font(name=_XL_POLICE, color=_XL_GRIS)
+        b.font = Font(name=_XL_POLICE, bold=True, size=12)
+        b.number_format = fmt
+        b.alignment = Alignment(horizontal="right")
+        for cell in (a, b):
+            cell.fill = PatternFill("solid", start_color=_XL_BLEU_CLAIR)
+            cell.border = Border(bottom=trait)
+        ws.row_dimensions[r].height = 20
+
+    ws["A12"] = "Plus fortes dépenses"
+    ws["A12"].font = Font(name=_XL_POLICE, bold=True, size=12, color=_XL_BLEU)
+    if c_premiere:
+        top = range(c_premiere, min(c_premiere + 5, c_derniere + 1))
+        _xl_tableau(
+            ws,
+            13,
+            ["Catégorie", "Montant", "Part"],
+            [[f"='Par catégorie'!{c}{r}" for c in "ABC"] for r in top],
+            ["@", _XL_EUR, _XL_PCT],
+        )
+    else:
+        ws["A13"] = "Aucune dépense sur la période"
+        ws["A13"].font = Font(name=_XL_POLICE, italic=True, color=_XL_GRIS)
+
+    _xl_largeurs(ws, [34, 16, 9])
+    _xl_impression(ws, "Synthèse", paysage=include_charts)
+    if include_charts and m_derniere >= m_premiere:
+        _add_income_vs_expenses_excel_chart(ws_mois, 4, m_derniere, ws, "E4")
+
+
+def _build_excel_report(report_type, data, start_date, end_date, include_charts=False):
+    """Classeur Excel du rapport : Synthèse, Par catégorie, Par mois, Opérations.
+
+    data : résultat de _collect_export_data. L'onglet du type de rapport
+    demandé est ouvert en premier. include_charts : graphiques Excel natifs,
+    liés aux cellules (ils suivent les modifications faites dans le classeur).
+    """
+    from openpyxl import Workbook
+
+    periode = (
+        f"Période du {start_date.strftime('%d/%m/%Y')} "
+        f"au {end_date.strftime('%d/%m/%Y')} · "
+        f"généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
+    )
+    wb = Workbook()
+    wb.properties.title = _XL_TITRES.get(report_type, "Rapport financier")
+    wb.properties.creator = "Gestion Budgétaire"
+    # Formules sans valeur en cache (openpyxl) : calcul à l'ouverture
+    wb.calculation.fullCalcOnLoad = True
+
+    # Pas de graphiques vides quand la période ne contient aucune opération
+    include_charts = include_charts and bool(data["operations"])
+    synthese = wb.active
+    synthese.title = "Synthèse"
+    plages = _xl_feuille_operations(wb, data["operations"], periode)
+    cat = _xl_feuille_categories(
+        wb, data["categories"], plages, periode, include_charts
+    )
+    mois = _xl_feuille_mois(wb, data["mois"], plages, periode, include_charts)
+    _xl_feuille_synthese(synthese, periode, mois, cat, plages, include_charts)
+
+    # Ordre de lecture : du résumé vers le détail
+    wb.move_sheet("Par catégorie", offset=-1)
+    wb.move_sheet("Par mois", offset=-1)
+    if report_type in ("expenses", "expenses_by_category", "expenses-by-category"):
+        wb.active = wb.sheetnames.index("Par catégorie")
+    elif report_type in ("income-vs-expenses", "cashflow"):
+        wb.active = wb.sheetnames.index("Par mois")
+    for ws in wb.worksheets:
+        ws.sheet_view.tabSelected = ws is wb.active
 
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer
+
+
+def _add_expenses_excel_chart(ws, first_row, last_row, cible, ancre):
+    """Barres horizontales des dépenses par catégorie, la plus forte en haut.
+
+    Plus lisible qu'un camembert dès qu'il y a plus de quelques catégories.
+    """
+    from openpyxl.chart import BarChart, Reference
+    from openpyxl.chart.label import DataLabelList
+
+    chart = BarChart()
+    chart.type = "bar"
+    chart.title = "Dépenses par catégorie"
+    chart.legend = None
+    chart.add_data(
+        Reference(ws, min_col=2, min_row=first_row, max_row=last_row),
+        titles_from_data=False,
+    )
+    chart.set_categories(Reference(ws, min_col=1, min_row=first_row, max_row=last_row))
+    chart.series[0].graphicalProperties.solidFill = _XL_BLEU
+    # Montant au bout de chaque barre : pas besoin de le lire sur l'axe
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = True
+    # Sinon LibreOffice ajoute catégorie, série et symbole à chaque étiquette
+    chart.dataLabels.showCatName = False
+    chart.dataLabels.showSerName = False
+    chart.dataLabels.showLegendKey = False
+    chart.dataLabels.showPercent = False
+    chart.dataLabels.position = "outEnd"
+    chart.dataLabels.numFmt = "#,##0 €"
+    # Le tableau est trié par montant décroissant : axe inversé pour le garder en haut
+    chart.x_axis.scaling.orientation = "maxMin"
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
+    chart.y_axis.numFmt = "#,##0 €"
+    chart.y_axis.majorGridlines = None
+    chart.gapWidth = 40
+    nb = last_row - first_row + 1
+    chart.width, chart.height = 18, max(7, 0.6 * nb + 2)
+    cible.add_chart(chart, ancre)
+
+
+def _add_income_vs_expenses_excel_chart(ws, header_row, last_row, cible, ancre):
+    """Barres revenus / dépenses par mois, avec le solde du mois en courbe."""
+    from openpyxl.chart import BarChart, LineChart, Reference
+
+    categories = Reference(ws, min_col=1, min_row=header_row + 1, max_row=last_row)
+
+    bars = BarChart()
+    bars.type = "col"
+    bars.title = "Revenus et dépenses par mois"
+    bars.add_data(
+        Reference(ws, min_col=2, max_col=3, min_row=header_row, max_row=last_row),
+        titles_from_data=True,
+    )
+    bars.set_categories(categories)
+    bars.series[0].graphicalProperties.solidFill = _XL_COULEURS["revenus"]
+    bars.series[1].graphicalProperties.solidFill = _XL_COULEURS["depenses"]
+    bars.y_axis.numFmt = "#,##0 €"
+    # Mois en bas du graphique, pas sur la ligne du zéro (soldes négatifs)
+    bars.x_axis.tickLblPos = "low"
+    bars.x_axis.delete = False
+    bars.y_axis.delete = False
+    bars.gapWidth = 60
+
+    solde = LineChart()
+    solde.add_data(
+        Reference(ws, min_col=4, min_row=header_row, max_row=last_row),
+        titles_from_data=True,
+    )
+    # Segments droits : une courbe lissée passe par des soldes qui n'existent pas
+    solde.series[0].smooth = False
+    solde.series[0].graphicalProperties.line.solidFill = _XL_COULEURS["solde"]
+    solde.series[0].graphicalProperties.line.width = 28575  # 2,25 pt
+    bars += solde
+
+    bars.legend.position = "b"
+    bars.width, bars.height = 22, 11
+    cible.add_chart(bars, ancre)
 
 
 def _build_csv_report(report_type, data):
@@ -596,23 +980,95 @@ def _build_csv_report(report_type, data):
     return output.getvalue()
 
 
-def _build_json_report(report_type, data, start_date, end_date):
-    """Construit un export JSON structuré pour un rapport."""
-    type_labels = {
-        "expenses": "Depenses par Categorie",
-        "expenses_by_category": "Depenses par Categorie",
-        "expenses-by-category": "Depenses par Categorie",
-        "income-vs-expenses": "Revenus vs Depenses",
-        "cashflow": "Flux de Tresorerie",
-    }
+def _build_json_report(report_type, data, collected, start_date, end_date):
+    """Export JSON complet : mêmes contenus que le classeur Excel (synthèse,
+    catégories, mois, opérations). `data` (le rapport demandé) est conservé
+    sous la clé « data » pour les lecteurs de l'ancien format."""
+    operations = collected["operations"]
+
+    def somme(ops):
+        return round(sum(op["montant"] for op in ops), 2)
+
+    revenus = [op for op in operations if op["type"] == "Revenu"]
+    depenses = [op for op in operations if op["type"] == "Dépense"]
+    total_revenus, total_depenses = somme(revenus), somme(depenses)
+    solde = round(total_revenus - total_depenses, 2)
+
+    by_category = []
+    for nom in collected["categories"]:
+        ops = [op for op in depenses if op["categorie"] == nom]
+        montant = somme(ops)
+        by_category.append(
+            {
+                "category": nom,
+                "amount": montant,
+                "percentage": (
+                    round(montant / total_depenses * 100, 1) if total_depenses else 0
+                ),
+                "operations": len(ops),
+            }
+        )
+
+    by_month, cumul = [], 0.0
+    for annee, numero in collected["mois"]:
+
+        def du_mois(ops):
+            return [
+                op
+                for op in ops
+                if op["date"] and (op["date"].year, op["date"].month) == (annee, numero)
+            ]
+
+        rev, dep = somme(du_mois(revenus)), somme(du_mois(depenses))
+        cumul = round(cumul + rev - dep, 2)
+        by_month.append(
+            {
+                "month": f"{annee}-{numero:02d}",
+                "label": f"{_XL_MOIS[numero - 1]} {annee}",
+                "income": rev,
+                "expenses": dep,
+                "balance": round(rev - dep, 2),
+                "cumulative_balance": cumul,
+            }
+        )
 
     export = {
         "report": {
             "type": report_type,
-            "title": type_labels.get(report_type, "Rapport Financier"),
+            "title": _XL_TITRES.get(report_type, "Rapport financier"),
             "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
-            "generated_at": datetime.now().isoformat(),
+            "currency": "EUR",
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
         },
+        "summary": {
+            "total_income": total_revenus,
+            "total_expenses": total_depenses,
+            "balance": solde,
+            "savings_rate": (
+                round(solde / total_revenus * 100, 1) if total_revenus else 0
+            ),
+            "operations_count": len(operations),
+        },
+        "by_category": by_category,
+        "by_month": by_month,
+        "operations": [
+            {
+                "id": op["id"],
+                "date": op["date"].isoformat() if op["date"] else None,
+                "description": op["libelle"],
+                "category": op["categorie"],
+                "account": op["compte"],
+                "destination_account": op["destination"],
+                "type": {
+                    "Revenu": "income",
+                    "Dépense": "expense",
+                    "Virement": "transfer",
+                }.get(op["type"], "other"),
+                "amount": round(op["montant"], 2),
+                "notes": op["notes"],
+            }
+            for op in operations
+        ],
         "data": data,
     }
 
@@ -888,7 +1344,11 @@ def api_reports_export():
 
         elif export_format == "excel":
             excel_buffer = _build_excel_report(
-                report_type, report_data, start_date, end_date
+                report_type,
+                _collect_export_data(user_id, start_date, end_date),
+                start_date,
+                end_date,
+                include_charts,
             )
             response = make_response(excel_buffer.getvalue())
             response.headers["Content-Type"] = (
@@ -908,7 +1368,11 @@ def api_reports_export():
 
         elif export_format == "json":
             json_content = _build_json_report(
-                report_type, report_data, start_date, end_date
+                report_type,
+                report_data,
+                _collect_export_data(user_id, start_date, end_date),
+                start_date,
+                end_date,
             )
             response = make_response(json_content)
             response.headers["Content-Type"] = "application/json; charset=utf-8"

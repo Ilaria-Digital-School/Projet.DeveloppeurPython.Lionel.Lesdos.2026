@@ -170,7 +170,7 @@ class CategoryService:
         user_id: Optional[int] = None,
         description: Optional[str] = None,
         color: str = "#6c757d",
-        icon: str = "fa-tag",
+        icon: str = "tag",
         monthly_budget: Optional[Decimal] = None,
         is_default: bool = False,
         category_type: str = "expense",
@@ -184,7 +184,7 @@ class CategoryService:
             user_id: ID de l'utilisateur propriétaire (None pour les catégories globales)
             description: Description optionnelle de la catégorie
             color: Couleur au format hexadécimal (ex: #28a745)
-            icon: Classe CSS de l'icône (ex: 'fa-utensils')
+            icon: Nom de l'icône Font Awesome, sans préfixe (ex: 'utensils')
             monthly_budget: Budget mensuel alloué (optionnel)
             is_default: Si la catégorie est une catégorie système par défaut
 

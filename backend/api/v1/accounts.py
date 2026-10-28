@@ -83,6 +83,7 @@ def create_compte():
             "initial_balance": Decimal(
                 str(data.get("initial_balance") or data.get("balance", 0))
             ),
+            "overdraft_limit": Decimal(str(data.get("overdraft_limit") or 0)),
             "currency": data.get("currency", "EUR"),
             "bank_name": (data.get("bank_name") or "").strip() or None,
             "account_number": (data.get("account_number") or "").strip() or None,
@@ -134,6 +135,7 @@ def get_compte(account_id):
                 if hasattr(account, "balance") and account.balance
                 else 0.0
             ),
+            "overdraft_limit": float(account.overdraft_limit),
             "currency": account.currency if hasattr(account, "currency") else "EUR",
             "bank_name": account.bank_name if hasattr(account, "bank_name") else None,
             "account_number": (
@@ -192,6 +194,15 @@ def update_compte(account_id):
             except Exception:
                 return api_error("Solde invalide", 400)
 
+        raw_overdraft = data.get("overdraft_limit")
+        if raw_overdraft in (None, ""):
+            overdraft_limit = None
+        else:
+            try:
+                overdraft_limit = Decimal(str(raw_overdraft))
+            except Exception:
+                return api_error("Découvert autorisé invalide", 400)
+
         if request.is_json:
             is_active = data.get("is_active", account.is_active)
             if isinstance(is_active, str):
@@ -209,6 +220,7 @@ def update_compte(account_id):
             "name": name,
             "account_type": data.get("account_type") or None,
             "balance": balance,
+            "overdraft_limit": overdraft_limit,
             "currency": data.get("currency") or None,
             "bank_name": (data.get("bank_name") or "").strip() or None,
             "account_number": (data.get("account_number") or "").strip() or None,

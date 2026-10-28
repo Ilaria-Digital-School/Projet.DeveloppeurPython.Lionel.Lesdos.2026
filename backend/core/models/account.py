@@ -49,6 +49,15 @@ class Account(db.Model):
         server_default="0",
         nullable=False,
     )
+    # Découvert autorisé par la banque : une dépense peut amener le solde
+    # jusqu'à -decouvert_autorise (0 = aucun découvert)
+    _overdraft_limit_db: Mapped[Decimal] = db.Column(
+        "decouvert_autorise",
+        db.Numeric(12, 2),
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
     _currency_db: Mapped[str] = db.Column(
         "devise", db.String(3), default="EUR", nullable=False
     )
@@ -187,6 +196,24 @@ class Account(db.Model):
     def initial_balance(self, value) -> None:
         self._initial_balance_db = Decimal(str(value))
 
+    @property
+    def overdraft_limit(self) -> Decimal:
+        """Découvert autorisé (montant positif, 0 = aucun découvert)."""
+        if self._overdraft_limit_db is None:
+            return Decimal("0.00")
+        return Decimal(str(self._overdraft_limit_db))
+
+    @overdraft_limit.setter
+    def overdraft_limit(self, value) -> None:
+        value = Decimal(str(value if value is not None else 0))
+        if value < 0:
+            raise ValueError("Le découvert autorisé ne peut pas être négatif")
+        self._overdraft_limit_db = value
+
+    def peut_debiter(self, montant) -> bool:
+        """Vrai si le débit de `montant` reste dans le découvert autorisé."""
+        return self.balance - Decimal(str(montant)) >= -self.overdraft_limit
+
     def ajuster_solde(self, nouveau_solde) -> None:
         """Saisie manuelle du solde : décale aussi le solde initial du même écart,
         pour que solde_actuel = solde_initial + transactions reste vrai."""
@@ -305,6 +332,7 @@ class Account(db.Model):
         account_type = kwargs.pop("account_type", "courant")
         balance = kwargs.pop("balance", Decimal("0.00"))
         initial_balance = kwargs.pop("initial_balance", None)
+        overdraft_limit = kwargs.pop("overdraft_limit", Decimal("0.00"))
         currency = kwargs.pop("currency", "EUR")
         is_active = kwargs.pop("is_active", True)
         is_primary = kwargs.pop("is_primary", False)
@@ -318,6 +346,7 @@ class Account(db.Model):
         kwargs["_initial_balance_db"] = Decimal(
             str(initial_balance if initial_balance is not None else balance)
         )
+        kwargs["_overdraft_limit_db"] = Decimal(str(overdraft_limit or 0))
         kwargs["_currency_db"] = currency
         kwargs["_is_active_db"] = is_active
         kwargs["_is_primary_db"] = is_primary
@@ -347,6 +376,7 @@ class Account(db.Model):
             "name": self.name,
             "account_type": self.account_type,
             "balance": float(self.balance) if self.balance is not None else 0.0,
+            "overdraft_limit": float(self.overdraft_limit),
             "currency": self.currency,
             "iban": self.iban,
             "bic_swift": self.bic_swift,

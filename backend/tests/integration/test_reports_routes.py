@@ -258,6 +258,150 @@ class TestRapportsExport:
         contenu = json.loads(resp.get_data(as_text=True))
         assert "140" in json.dumps(contenu)
 
+    @staticmethod
+    def _excel(client, report_type, options=""):
+        resp = client.get(
+            f"/api/v1/rapports/export?format=excel&report_type={report_type}"
+            f"&{JUIN_QS}{options}"
+        )
+        assert resp.status_code == 200
+        return resp.data
+
+    @staticmethod
+    def _graphiques(contenu):
+        """Types de graphiques de chaque graphique du .xlsx, triés."""
+        import re
+        import zipfile
+        from io import BytesIO
+
+        with zipfile.ZipFile(BytesIO(contenu)) as xlsx:
+            return sorted(
+                tuple(
+                    sorted(
+                        set(
+                            re.findall(
+                                r"<(?:c:)?(pieChart|barChart|lineChart)>",
+                                xlsx.read(nom).decode(),
+                            )
+                        )
+                    )
+                )
+                for nom in xlsx.namelist()
+                if nom.startswith("xl/charts/chart")
+            )
+
+    @pytest.mark.parametrize(
+        "report_type, onglet_ouvert",
+        [
+            ("expenses_by_category", "Par catégorie"),
+            ("income_vs_expenses", "Par mois"),
+            ("cashflow", "Par mois"),
+        ],
+    )
+    def test_excel_classeur_de_plusieurs_onglets(
+        self, auth_client, operations, report_type, onglet_ouvert
+    ):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(self._excel(auth_client, report_type)))
+        assert wb.sheetnames == ["Synthèse", "Par catégorie", "Par mois", "Opérations"]
+        assert wb.active.title == onglet_ouvert
+
+    def test_excel_avec_graphiques(self, auth_client, operations):
+        contenu = self._excel(
+            auth_client, "expenses_by_category", "&include_charts=true"
+        )
+        # Synthèse et Par mois : barres + solde ; Par catégorie : barres
+        assert self._graphiques(contenu) == [
+            ("barChart",),
+            ("barChart", "lineChart"),
+            ("barChart", "lineChart"),
+        ]
+
+    def test_excel_sans_option_sans_graphique(self, auth_client, operations):
+        assert self._graphiques(self._excel(auth_client, "expenses_by_category")) == []
+
+    def test_excel_avec_graphiques_sans_donnees(self, auth_client):
+        # Période vide : pas de graphique vide, et pas d'erreur
+        contenu = self._excel(
+            auth_client, "expenses_by_category", "&include_charts=true"
+        )
+        assert self._graphiques(contenu) == []
+
+    def test_excel_onglets_calcules_depuis_les_operations(
+        self, auth_client, operations
+    ):
+        """Totaux en formules sur l'onglet Opérations : modifier une opération
+        dans Excel met à jour catégories, mois et synthèse."""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        wb = load_workbook(BytesIO(self._excel(auth_client, "expenses_by_category")))
+        ops = wb["Opérations"]
+        lignes = [r for r in ops.iter_rows(min_row=5, values_only=True) if r[0]]
+        # Juin : 4 dépenses, 1 revenu, 1 virement (ni revenu ni dépense)
+        assert sorted(r[4] for r in lignes) == [
+            "Dépense", "Dépense", "Dépense", "Dépense", "Revenu", "Virement",
+        ]  # fmt: skip
+
+        cat = wb["Par catégorie"]
+        assert cat["A5"].value == "Alimentation"  # plus forte dépense en tête
+        assert cat["B5"].value.startswith("=SUMIFS('Opérations'!$F$5:$F$")
+        assert '"Dépense"' in cat["B5"].value
+
+        mois = wb["Par mois"]
+        assert mois["A5"].value == "juin 2026"
+        assert "DATE(2026,6,1)" in mois["B5"].value
+        assert wb["Synthèse"]["B5"].value.startswith("='Par mois'!B")
+
+    def test_export_json_complet(self, auth_client, operations):
+        """Le JSON contient les mêmes contenus que le classeur Excel."""
+        resp = auth_client.get(
+            f"/api/v1/rapports/export?format=json&report_type=expenses_by_category"
+            f"&{JUIN_QS}"
+        )
+        contenu = json.loads(resp.get_data(as_text=True))
+
+        assert contenu["report"]["title"] == "Dépenses par catégorie"
+        assert contenu["report"]["currency"] == "EUR"
+        assert contenu["summary"] == {
+            "total_income": 2000.0,
+            "total_expenses": 140.0,
+            "balance": 1860.0,
+            "savings_rate": 93.0,
+            "operations_count": 6,  # juin : 4 dépenses, 1 revenu, 1 virement
+        }
+        assert contenu["by_category"][0] == {
+            "category": "Alimentation",
+            "amount": 100.0,
+            "percentage": 71.4,
+            "operations": 2,
+        }
+        assert contenu["by_month"] == [
+            {
+                "month": "2026-06",
+                "label": "juin 2026",
+                "income": 2000.0,
+                "expenses": 140.0,
+                "balance": 1860.0,
+                "cumulative_balance": 1860.0,
+            }
+        ]
+        ops = contenu["operations"]
+        assert len(ops) == 6
+        assert set(ops[0]) == {
+            "id", "date", "description", "category", "account",
+            "destination_account", "type", "amount", "notes",
+        }  # fmt: skip
+        assert sorted(op["type"] for op in ops) == [
+            "expense", "expense", "expense", "expense", "income", "transfer",
+        ]  # fmt: skip
+        # Ancien format conservé
+        assert contenu["data"]["total"] == 140.0
+
     def test_format_invalide(self, auth_client):
         resp = auth_client.get("/api/v1/rapports/export?format=docx")
         assert resp.status_code == 400
