@@ -1,0 +1,34 @@
+# Le Dockerfile fait COPY backend/ : tout ce qui n'est pas exclu ici part en production.
+
+# Secrets et configuration locale
+.env
+.env.*
+**/.env
+**/.env.*
+docker-compose.override.yml
+
+# Git, CI, docs
+.git
+.github
+docs
+
+# Environnements et caches Python
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+**/*.egg-info
+
+# Tests (inutiles en production)
+backend/tests
+
+# Donnees d'execution locales : sessions, uploads et logs du poste de dev
+# (en production ils vivent dans les volumes app_uploads et app_logs)
+backend/instance
+backend/logs
+
+# Frontend : seuls templates/ et static/ sont copies
+frontend/node_modules

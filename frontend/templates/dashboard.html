@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Tableau de bord - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+  <!-- Token CSRF pour les requêtes AJAX -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome/css/all.min.css') }}">
+
+  <!-- Flatpickr pour les sélecteurs de date -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flatpickr.min.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="dashboard-charts-container" class="container mx-auto px-4 py-6 max-w-7xl">
+  <!-- En-tête avec boutons d'action -->
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        📊 Tableau de bord
+      </h1>
+      <p class="text-gray-600">Bonjour {{ current_user.first_name or current_user.username }}, voici un aperçu de vos finances</p>
+    </div>
+    <div class="flex gap-3">
+      <button id="chart-refresh-btn" class="chart-refresh-btn">
+        <i class="fas fa-sync-alt"></i> Actualiser
+      </button>
+    </div>
+  </div>
+  
+  <!-- Conteneur des alertes -->
+  <div id="alert-container"></div>
+  
+  <!-- KPIs - Cartes métriques -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Carte Patrimoine total -->
+    <div class="kpi-card kpi-balance">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="kpi-label">Patrimoine total</div>
+          <div class="kpi-value" id="kpi-balance">{{ "%0.2f"|format(stats.balance|default(0)) }} €</div>
+        </div>
+        <i class="fas fa-wallet kpi-icon"></i>
+      </div>
+    </div>
+    
+    <!-- Carte Revenus du mois -->
+    <div class="kpi-card kpi-income">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="kpi-label">Revenus du mois</div>
+          <div class="kpi-value" id="kpi-income">{{ "%0.2f"|format(stats.total_revenus|default(0)) }} €</div>
+        </div>
+        <i class="fas fa-arrow-up kpi-icon"></i>
+      </div>
+    </div>
+    
+    <!-- Carte Dépenses du mois -->
+    <div class="kpi-card kpi-expenses">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="kpi-label">Dépenses du mois</div>
+          <div class="kpi-value" id="kpi-expenses">{{ "%0.2f"|format(stats.total_depenses|default(0)) }} €</div>
+        </div>
+        <i class="fas fa-arrow-down kpi-icon"></i>
+      </div>
+    </div>
+    
+    <!-- Carte Économies -->
+    <div class="kpi-card kpi-savings">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="kpi-label">Économies</div>
+          <div class="kpi-value" id="kpi-savings">{{ "%0.2f"|format((stats.total_revenus|default(0)) - (stats.total_depenses|default(0))) }} €</div>
+        </div>
+        <i class="fas fa-piggy-bank kpi-icon"></i>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Section Administration (uniquement pour les admins) -->
+  {% if current_user.is_authenticated and current_user.is_admin %}
+  <div class="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold flex items-center">
+          <i class="fas fa-shield-alt mr-3"></i>
+          Administration Système
+        </h2>
+        <p class="text-purple-100">Accès rapide aux fonctions d'administration</p>
+      </div>
+      <div class="text-purple-100 text-sm">
+        Mode Administrateur
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Widget Utilisateurs -->
+      <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 hover:bg-white/20 transition-all duration-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center">
+            <i class="fas fa-users text-2xl mr-3"></i>
+            <div>
+              <div class="text-sm text-purple-100">Utilisateurs</div>
+              <div class="text-xl font-bold">{{ admin_stats.users_count if admin_stats else '...' }}</div>
+            </div>
+          </div>
+          <a href="{{ url_for('admin.users_management') }}" 
+             class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors duration-200">
+            Gérer
+          </a>
+        </div>
+        <div class="text-xs text-purple-200">
+          {{ admin_stats.new_users_week if admin_stats else 0 }} nouveaux cette semaine
+        </div>
+      </div>
+      
+      <!-- Widget Monitoring -->
+      <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 hover:bg-white/20 transition-all duration-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center">
+            <i class="fas fa-chart-line text-2xl mr-3"></i>
+            <div>
+              <div class="text-sm text-purple-100">Vol. Financier</div>
+              <div class="text-xl font-bold">{{ "%.0f"|format(admin_stats.total_volume if admin_stats else 0) }}€</div>
+            </div>
+          </div>
+          <a href="{{ url_for('admin.monitoring') }}" 
+             class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors duration-200">
+            Voir
+          </a>
+        </div>
+        <div class="text-xs text-purple-200">
+          {{ admin_stats.transactions_count if admin_stats else 0 }} transactions total
+        </div>
+      </div>
+      
+      <!-- Widget Système -->
+      <div class="bg-white/10 backdrop-blur-sm rounded-lg p-4 hover:bg-white/20 transition-all duration-200">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center">
+            <i class="fas fa-server text-2xl mr-3"></i>
+            <div>
+              <div class="text-sm text-purple-100">Système</div>
+              <div class="text-xl font-bold text-green-300">✓ OK</div>
+            </div>
+          </div>
+          <a href="{{ url_for('admin.dashboard') }}" 
+             class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors duration-200">
+            Dashboard
+          </a>
+        </div>
+        <div class="text-xs text-purple-200">
+          {{ admin_stats.suspicious_count if admin_stats else 0 }} transactions suspectes
+        </div>
+      </div>
+    </div>
+    
+    <!-- Alertes Admin -->
+    {% if admin_stats and admin_stats.suspicious_count > 0 %}
+    <div class="mt-4 bg-orange-500/20 border border-orange-400/30 rounded-lg p-3">
+      <div class="flex items-center">
+        <i class="fas fa-exclamation-triangle text-orange-300 mr-2"></i>
+        <span class="text-sm">
+          <strong>{{ admin_stats.suspicious_count }}</strong> transactions suspectes détectées
+          <a href="{{ url_for('admin.monitoring') }}" class="underline hover:no-underline ml-2">→ Vérifier</a>
+        </span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  
+  <!-- Filtres des graphiques -->
+  <div class="chart-filters">
+    <div class="chart-filter-group">
+      <label for="balance-months">Évolution patrimoine :</label>
+      <select id="balance-months" class="chart-filter">
+        <option value="3">3 mois</option>
+        <option value="6" selected>6 mois</option>
+        <option value="12">12 mois</option>
+      </select>
+    </div>
+    
+    <div class="chart-filter-group">
+      <label for="expenses-period">Dépenses période :</label>
+      <select id="expenses-period" class="chart-filter">
+        <option value="7">7 jours</option>
+        <option value="30" selected>30 jours</option>
+        <option value="90">90 jours</option>
+      </select>
+    </div>
+    
+    <div class="chart-filter-group">
+      <label for="income-months">Revenus/Dépenses :</label>
+      <select id="income-months" class="chart-filter">
+        <option value="6" selected>6 mois</option>
+        <option value="12">12 mois</option>
+        <option value="24">24 mois</option>
+      </select>
+    </div>
+  </div>
+  
+  <!-- Graphiques principaux -->
+  <div class="charts-grid">
+    <!-- Évolution du patrimoine -->
+    <div class="chart-container">
+      <canvas id="balance-evolution-chart"></canvas>
+    </div>
+    
+    <!-- Répartition des dépenses -->
+    <div class="chart-container chart-widget">
+      <canvas id="expenses-breakdown-chart"></canvas>
+    </div>
+  </div>
+  
+  <!-- Graphiques secondaires -->
+  <div class="charts-grid">
+    <!-- Revenus vs Dépenses -->
+    <div class="chart-container">
+      <canvas id="income-vs-expenses-chart"></canvas>
+    </div>
+    
+    <!-- Progression des budgets -->
+    <div class="chart-container chart-widget">
+      <canvas id="budget-progress-chart"></canvas>
+    </div>
+  </div>
+  
+  
+  <!-- Aperçu budgétaire complet -->
+  <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-semibold text-gray-900">
+        <i class="fas fa-chart-pie mr-2 text-purple-600"></i>
+        Mes budgets
+      </h2>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-gray-500" id="budget-period"></span>
+        <span id="budget-critical-badge" class="hidden bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full"></span>
+      </div>
+    </div>
+
+    <div id="budget-list" class="space-y-3">
+      <div class="text-center text-gray-500 py-8">
+        <i class="fas fa-spinner fa-spin text-gray-400 text-2xl mb-2"></i>
+        <p>Chargement des budgets...</p>
+      </div>
+    </div>
+
+    <div class="mt-6 pt-4 border-t border-gray-200 text-center">
+      <button id="manage-budgets-btn" class="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200">
+        Gérer tous les budgets →
+      </button>
+    </div>
+  </div>
+
+  {# Widget budgets géré par dashboard.js : loadBudgetOverview() appelle
+     /api/v1/budgets/summary et rend le widget dans #budget-list, avec rafraîchissement
+     après chaque transaction. L'ancien bloc inline (loadBudgetWidget) appelait la route
+     /dashboard/budgets/api/summary supprimée lors du nettoyage API-first → 404 qui
+     écrasait le rendu correct de dashboard.js. Supprimé. #}
+
+  <!-- Dernières transactions -->
+  <div class="bg-white rounded-lg shadow-lg p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-semibold text-gray-900">
+        <i class="fas fa-history mr-2 text-green-600"></i>
+        Activité récente
+      </h2>
+      <a href="{{ url_for('transactions.list_transactions') }}" class="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200">
+        Voir tout →
+      </a>
+    </div>
+    
+    <div id="recent-transactions" class="space-y-3">
+      {% if recent_transactions and recent_transactions|length > 0 %}
+        {% for transaction in recent_transactions[:5] %}
+        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+          <div class="flex items-center">
+            <div class="bg-white p-2 rounded-full shadow-sm mr-4">
+              <i class="fas fa-{{ 'arrow-up text-green-600' if transaction.amount > 0 else 'arrow-down text-red-600' }}"></i>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-900">{{ transaction.description }}</h4>
+              <div class="flex items-center text-sm text-gray-500">
+                {% if transaction.category_name and transaction.category_name != 'Sans catégorie' %}
+                  <span class="mr-2">{{ transaction.category_name }}</span>
+                  <span class="mr-2">•</span>
+                {% endif %}
+                <span>{{ transaction.transaction_date }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-lg font-semibold {{ 'text-green-600' if transaction.amount > 0 else 'text-red-600' }}">
+            {{ "%+0.2f"|format(transaction.amount) }} €
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center text-gray-500 py-12">
+          <i class="fas fa-receipt text-gray-300 text-4xl mb-4"></i>
+          <p class="text-lg mb-2">Aucune transaction récente</p>
+          <p class="text-sm">Commencez par ajouter votre première transaction</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal de gestion des budgets -->
+{% include 'partials/budget_modal.html' %}
+
+<!-- Modal de création de transaction rapide -->
+<div id="quick-transaction-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-screen overflow-y-auto">
+    <div class="p-6 border-b border-gray-200">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900">Nouvelle transaction</h3>
+        <button type="button" class="text-gray-400 hover:text-gray-600 close-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+    
+    <form id="quick-transaction-form" class="p-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label for="transaction-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          <select id="transaction-type" name="type" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+            <option value="expense">Dépense</option>
+            <option value="income">Revenu</option>
+            <option value="transfer">Virement</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="transaction-amount" class="block text-sm font-medium text-gray-700 mb-1">Montant</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">€</span>
+            <input type="number" id="transaction-amount" name="amount" step="0.01" min="0" 
+                   class="w-full p-3 pl-8 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                   placeholder="0.00" required>
+          </div>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label for="transaction-date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+          <input type="text" id="transaction-date" name="date" 
+                 class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                 placeholder="Sélectionner une date" required>
+        </div>
+        
+        <div>
+          <label for="transaction-account" class="block text-sm font-medium text-gray-700 mb-1">Compte</label>
+          <select id="transaction-account" name="account" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+            <option value="">Sélectionner un compte</option>
+            <!-- Les comptes seront chargés dynamiquement -->
+          </select>
+        </div>
+      </div>
+      
+      <div class="mb-4">
+        <label for="transaction-category" class="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+        <select id="transaction-category" name="category" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Sélectionner une catégorie</option>
+          <!-- Les catégories seront chargées dynamiquement -->
+        </select>
+      </div>
+      
+      <div class="mb-6">
+        <label for="transaction-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <input type="text" id="transaction-description" name="description" 
+               class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+               placeholder="Ex: Courses, Loyer, Salaire..." required>
+      </div>
+      
+      <div class="flex gap-3">
+        <button type="button" class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 close-modal">
+          Annuler
+        </button>
+        <button type="submit" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          Enregistrer
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  <!-- Flatpickr pour les dates -->
+  <script src="{{ url_for('static', filename='js/flatpickr.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flatpickr-fr.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flatpickr-config.js') }}"></script>
+  
+  <!-- Scripts Dashboard avec graphiques Chart.js -->
+  <script src="{{ url_for('static', filename='js/dashboard-charts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/pages/dashboard.js') }}?v=2"></script>
+{% endblock %}

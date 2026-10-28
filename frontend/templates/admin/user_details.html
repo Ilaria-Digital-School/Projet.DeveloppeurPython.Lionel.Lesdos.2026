@@ -1,0 +1,1055 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Détails Utilisateur {{ user.username }}{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+.admin-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+}
+
+.detail-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.user-avatar-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 3rem;
+    font-weight: bold;
+    margin: 0 auto 1rem;
+}
+
+.stat-box {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 10px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #333;
+    margin: 0;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.status-active {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Styles des boutons administratifs modernes */
+.btn-admin {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 0.9rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.btn-admin::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-admin:hover::before {
+    left: 100%;
+}
+
+.btn-admin:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    color: white;
+}
+
+.btn-admin:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+/* Variantes de couleurs améliorées */
+.btn-admin.btn-primary {
+    background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.btn-admin.btn-primary:hover {
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+.btn-admin.btn-success {
+    background: linear-gradient(135deg, #10B981 0%, #047857 100%);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+}
+
+.btn-admin.btn-success:hover {
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+}
+
+.btn-admin.btn-warning {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.btn-admin.btn-warning:hover {
+    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
+    color: white;
+}
+
+.btn-admin.btn-danger {
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+.btn-admin.btn-danger:hover {
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+}
+
+.btn-admin.btn-info {
+    background: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%);
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+}
+
+.btn-admin.btn-info:hover {
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.3);
+}
+
+.btn-admin.btn-secondary {
+    background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+    box-shadow: 0 2px 8px rgba(107, 114, 128, 0.2);
+}
+
+.btn-admin.btn-secondary:hover {
+    box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.info-item {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+}
+
+.info-value {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.role-badge.admin {
+    background: #dc3545;
+    color: white;
+}
+
+.role-badge.user {
+    background: #17a2b8;
+    color: white;
+}
+
+.two-fa-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.two-fa-enabled {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.two-fa-disabled {
+    color: #6c757d;
+}
+
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animations pour les alertes */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-1">👤 Détails Utilisateur</h1>
+                <p class="mb-0 opacity-75">Informations complètes de {{ user.username }}</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="{{ url_for('admin.users_management') }}" class="btn btn-outline-light">
+                    ← Retour à la liste
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container" id="userDetailsContainer" data-user-id="{{ user.id }}">
+    <div class="row">
+        <!-- Informations Principal -->
+        <div class="col-md-4">
+            <div class="detail-card text-center">
+                {% if user.avatar_url %}
+                <img src="{{ user.avatar_url }}" alt="Avatar de {{ user.username }}"
+                     class="user-avatar-large" style="object-fit: cover;">
+                {% else %}
+                <div class="user-avatar-large">
+                    {{ user.username[0].upper() }}
+                </div>
+                {% endif %}
+                <h4 class="mb-2">{{ user.username }}</h4>
+                <p class="text-muted mb-3">{{ user.email }}</p>
+                
+                <div class="mb-3">
+                    <span class="status-badge {{ 'status-active' if user.is_active else 'status-inactive' }}">
+                        {{ 'Actif' if user.is_active else 'Inactif' }}
+                    </span>
+                </div>
+                
+                <div class="mb-3">
+                    {% for role in user.roles %}
+                    <span class="role-badge {{ role }}">{{ role.title() }}</span>
+                    {% endfor %}
+                </div>
+                
+                <div class="two-fa-status justify-content-center mb-3">
+                    <span class="{{ 'two-fa-enabled' if user.two_factor_enabled else 'two-fa-disabled' }}">
+                        {{ '🔐' if user.two_factor_enabled else '🔓' }}
+                        2FA {{ 'Activée' if user.two_factor_enabled else 'Désactivée' }}
+                    </span>
+                </div>
+                
+                <!-- Actions -->
+                <div class="d-grid gap-2">
+                    <button class="btn btn-admin {{ 'btn-success' if not user.is_active else 'btn-danger' }}" 
+                            onclick="toggleUserStatus({{ user.id }}, '{{ user.username }}', {{ 'true' if user.is_active else 'false' }})">
+                        {{ '✅ Activer' if not user.is_active else '❌ Désactiver' }}
+                    </button>
+                    
+                    {% if user.two_factor_enabled %}
+                    <button class="btn btn-admin btn-warning" 
+                            onclick="reset2FA({{ user.id }}, '{{ user.username }}')">
+                        🔄 Réinitialiser 2FA
+                    </button>
+                    {% endif %}
+                    
+                    <button class="btn btn-admin" onclick="sendNotification({{ user.id }})">
+                        📧 Envoyer Notification
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Statistiques -->
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="stat-box">
+                        <h3 class="stat-number">{{ user.accounts_count }}</h3>
+                        <p class="stat-label">Comptes</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-box">
+                        <h3 class="stat-number">{{ user.transactions_count }}</h3>
+                        <p class="stat-label">Transactions</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-box">
+                        <h3 class="stat-number">{{ "%.0f"|format(user.total_volume) }}€</h3>
+                        <p class="stat-label">Volume Total</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Informations Détaillées -->
+            <div class="detail-card">
+                <h5 class="mb-3">📋 Informations Détaillées</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Nom Complet</div>
+                        <div class="info-value">
+                            {{ (user.first_name + ' ' + user.last_name) if user.first_name and user.last_name else 'Non renseigné' }}
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Email Vérifié</div>
+                        <div class="info-value">
+                            {{ '✅ Oui' if user.email_verified else '❌ Non' }}
+                        </div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Date d'Inscription</div>
+                        <div class="info-value">{{ user.created_at }}</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Dernière Connexion</div>
+                        <div class="info-value">{{ user.last_login }}</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Nombre de Connexions</div>
+                        <div class="info-value">{{ user.login_count }} fois</div>
+                    </div>
+                    
+                    <div class="info-item">
+                        <div class="info-label">Authentification 2FA</div>
+                        <div class="info-value">
+                            {{ 'Configurée et active' if user.two_factor_enabled else 'Non configurée' }}
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Téléphone</div>
+                        <div class="info-value">{{ user.phone or 'Non renseigné' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Ville</div>
+                        <div class="info-value">{{ user.city or 'Non renseigné' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Pays</div>
+                        <div class="info-value">{{ user.country or 'Non renseigné' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Langue</div>
+                        <div class="info-value">{{ user.language or 'Non renseigné' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Fuseau horaire</div>
+                        <div class="info-value">{{ user.timezone or 'Non renseigné' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sécurité -->
+            <div class="detail-card">
+                <h5 class="mb-3">🛡️ Sécurité</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Tentatives de connexion échouées</div>
+                        <div class="info-value">{{ user.login_attempts }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Compte verrouillé</div>
+                        <div class="info-value">
+                            {% if user.is_locked %}
+                            <span class="status-badge status-inactive">Verrouillé</span>
+                            {% else %}
+                            <span class="status-badge status-active">Non</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Dernière IP de connexion</div>
+                        <div class="info-value">{{ user.last_login_ip or 'N/A' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">IP de connexion actuelle</div>
+                        <div class="info-value">{{ user.current_login_ip or 'N/A' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">2FA activée le</div>
+                        <div class="info-value">{{ user.two_factor_enabled_at or 'N/A' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cycle de vie -->
+            <div class="detail-card">
+                <h5 class="mb-3">🗓️ Cycle de vie</h5>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Dernière mise à jour</div>
+                        <div class="info-value">{{ user.updated_at }}</div>
+                    </div>
+
+                    {% if not user.is_active %}
+                    <div class="info-item">
+                        <div class="info-label">Désactivé le</div>
+                        <div class="info-value">{{ user.deactivated_at or 'N/A' }}</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">Raison de désactivation</div>
+                        <div class="info-value">{{ user.deactivation_reason or 'Non renseignée' }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Historique Récent -->
+            <div class="detail-card">
+                <h5 class="mb-3">📈 Activité Récente</h5>
+                <div id="recentActivity">
+                    <div class="text-center py-3 text-muted">Chargement de l'activité…</div>
+                </div>
+            </div>
+
+            <!-- Données financières -->
+            <div class="detail-card">
+                <h5 class="mb-3">💰 Données financières</h5>
+                <div class="d-flex gap-2 mb-3">
+                    <button type="button" class="btn btn-admin btn-primary" id="tabAccounts">
+                        Comptes
+                    </button>
+                    <button type="button" class="btn btn-admin btn-secondary" id="tabTransactions">
+                        Transactions
+                    </button>
+                </div>
+                <div id="accountsPanel">
+                    <div class="text-center py-3 text-muted">Chargement des comptes…</div>
+                </div>
+                <div id="transactionsPanel" class="d-none">
+                    <div id="transactionsContent"></div>
+                    <div id="txPagination" class="d-flex justify-content-between align-items-center mt-3"></div>
+                </div>
+            </div>
+
+            <!-- Actions Administratives -->
+            <div class="detail-card">
+                <h5 class="mb-3">⚙️ Actions Administratives</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <button class="btn btn-admin btn-info w-100 mb-2" onclick="exportUserData({{ user.id }})">
+                            <i class="fas fa-download me-2"></i>Exporter Données
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-admin btn-secondary w-100 mb-2" onclick="viewUserSessions({{ user.id }})">
+                            <i class="fas fa-history me-2"></i>Sessions Actives
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-admin btn-primary w-100 mb-2" onclick="resetPassword({{ user.id }})">
+                            <i class="fas fa-key me-2"></i>Reset Mot de Passe
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        {% if user.is_active %}
+                        <button class="btn btn-admin btn-warning w-100 mb-2" onclick="toggleUser({{ user.id }}, false)">
+                            <i class="fas fa-user-slash me-2"></i>Désactiver Utilisateur
+                        </button>
+                        {% else %}
+                        <button class="btn btn-admin btn-success w-100 mb-2" onclick="toggleUser({{ user.id }}, true)">
+                            <i class="fas fa-user-check me-2"></i>Activer Utilisateur
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmation -->
+<div id="confirmModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold mb-4">Confirmer l'action</h3>
+        <div id="confirmModalBody" class="mb-6 text-gray-600">
+            <!-- Le contenu sera ajouté dynamiquement -->
+        </div>
+        <div class="flex justify-end space-x-3">
+            <button type="button" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400" onclick="hideConfirmModal()">Annuler</button>
+            <button type="button" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" id="confirmButton">Confirmer</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Fonction pour changer le statut d'un utilisateur
+function toggleUserStatus(userId, username, isCurrentlyActive) {
+    const action = isCurrentlyActive ? 'désactiver' : 'activer';
+    const message = `Êtes-vous sûr de vouloir ${action} l'utilisateur "${username}" ?`;
+    
+    showConfirmModal(message, () => {
+        fetch(`/api/v1/admin/users/${userId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showAlert('success', data.message || 'Statut mis à jour');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showAlert('error', data.message || 'Erreur lors de la modification du statut');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showAlert('error', 'Erreur lors de la communication avec le serveur');
+        });
+    });
+}
+
+// Fonction pour réinitialiser la 2FA
+function reset2FA(userId, username) {
+    const message = `Êtes-vous sûr de vouloir réinitialiser la 2FA pour l'utilisateur "${username}" ?`;
+
+    showConfirmModal(message, () => {
+        fetch(`/api/v1/admin/users/${userId}/reset-2fa`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showAlert('success', data.message || '2FA réinitialisée');
+                setTimeout(() => window.location.reload(), 3000);
+            } else {
+                showAlert('error', data.message || 'Erreur lors de la réinitialisation');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showAlert('error', 'Erreur lors de la communication avec le serveur');
+        });
+    });
+}
+
+// === Activité récente et données financières (rendu via textContent uniquement, anti-XSS) ===
+
+function setLoading(container, text) {
+    container.replaceChildren();
+    const div = document.createElement('div');
+    div.className = 'text-center py-3 text-muted';
+    div.textContent = text;
+    container.appendChild(div);
+}
+
+function setError(container, text) {
+    container.replaceChildren();
+    const div = document.createElement('div');
+    div.className = 'text-center py-3 text-danger';
+    div.textContent = text;
+    container.appendChild(div);
+}
+
+const ACTIVITY_ICONS = {
+    login: { icon: '🔐', color: '#3182ce' },
+    transaction: { icon: '💳', color: '#2f855a' },
+    notification: { icon: '🔔', color: '#d69e2e' }
+};
+
+// Fonction pour charger l'activité récente (données réelles)
+function loadRecentActivity(userId) {
+    const activityDiv = document.getElementById('recentActivity');
+    setLoading(activityDiv, 'Chargement…');
+
+    fetch(`/api/v1/admin/users/${userId}/activity?limit=20`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                setError(activityDiv, data.message || 'Erreur lors du chargement de l\'activité');
+                return;
+            }
+            activityDiv.replaceChildren();
+            if (!data.activity || data.activity.length === 0) {
+                setLoading(activityDiv, 'Aucune activité récente');
+                return;
+            }
+            const list = document.createElement('div');
+            list.className = 'list-group';
+            data.activity.forEach(item => {
+                const meta = ACTIVITY_ICONS[item.type] || { icon: '📌', color: '#666' };
+                const entry = document.createElement('div');
+                entry.className = 'list-group-item';
+
+                const header = document.createElement('div');
+                header.className = 'd-flex w-100 justify-content-between';
+
+                const title = document.createElement('h6');
+                title.className = 'mb-1';
+                title.style.color = meta.color;
+                let titleText = `${meta.icon} ${item.title || ''}`;
+                if (item.type === 'transaction' && item.transaction_type) {
+                    titleText += ` (${item.transaction_type})`;
+                }
+                title.textContent = titleText;
+
+                const dateSmall = document.createElement('small');
+                dateSmall.textContent = item.date_display || '';
+
+                header.appendChild(title);
+                header.appendChild(dateSmall);
+                entry.appendChild(header);
+
+                if (item.details) {
+                    const details = document.createElement('p');
+                    details.className = 'mb-1';
+                    details.textContent = item.details;
+                    entry.appendChild(details);
+                }
+                if (item.type === 'login' && item.success === false) {
+                    const failure = document.createElement('small');
+                    failure.className = 'text-danger';
+                    failure.textContent = item.failure_reason
+                        ? `Échec : ${item.failure_reason}`
+                        : 'Échec de connexion';
+                    entry.appendChild(failure);
+                }
+                list.appendChild(entry);
+            });
+            activityDiv.appendChild(list);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            setError(activityDiv, 'Erreur lors de la communication avec le serveur');
+        });
+}
+
+// Comptes de l'utilisateur (chargés une seule fois)
+let accountsLoaded = false;
+function loadAccounts(userId) {
+    if (accountsLoaded) return;
+    const panel = document.getElementById('accountsPanel');
+    setLoading(panel, 'Chargement des comptes…');
+
+    fetch(`/api/v1/admin/users/${userId}/accounts`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                setError(panel, data.message || 'Erreur lors du chargement des comptes');
+                return;
+            }
+            accountsLoaded = true;
+            panel.replaceChildren();
+            if (!data.accounts || data.accounts.length === 0) {
+                setLoading(panel, 'Aucun compte');
+                return;
+            }
+            const table = document.createElement('table');
+            table.className = 'table table-sm';
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            ['Nom', 'Type', 'Solde', 'Actif'].forEach(label => {
+                const th = document.createElement('th');
+                th.textContent = label;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            data.accounts.forEach(acc => {
+                const row = document.createElement('tr');
+
+                const nameCell = document.createElement('td');
+                nameCell.textContent = acc.is_primary ? `${acc.name} ⭐` : acc.name;
+                row.appendChild(nameCell);
+
+                const typeCell = document.createElement('td');
+                typeCell.textContent = acc.account_type || '';
+                row.appendChild(typeCell);
+
+                const balanceCell = document.createElement('td');
+                balanceCell.textContent = `${acc.balance.toFixed(2)} ${acc.currency}`;
+                balanceCell.style.color = acc.balance < 0 ? '#c53030' : '#2f855a';
+                balanceCell.style.fontWeight = '600';
+                row.appendChild(balanceCell);
+
+                const activeCell = document.createElement('td');
+                activeCell.textContent = acc.is_active ? 'Oui' : 'Non';
+                row.appendChild(activeCell);
+
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            panel.appendChild(table);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            setError(panel, 'Erreur lors de la communication avec le serveur');
+        });
+}
+
+// Transactions paginées de l'utilisateur
+function loadTransactions(userId, page) {
+    const content = document.getElementById('transactionsContent');
+    const paginationDiv = document.getElementById('txPagination');
+    setLoading(content, 'Chargement des transactions…');
+    paginationDiv.replaceChildren();
+
+    fetch(`/api/v1/admin/users/${userId}/transactions?page=${page}&per_page=20`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                setError(content, data.message || 'Erreur lors du chargement des transactions');
+                return;
+            }
+            content.replaceChildren();
+            if (!data.data || data.data.length === 0) {
+                setLoading(content, 'Aucune transaction');
+                return;
+            }
+            const table = document.createElement('table');
+            table.className = 'table table-sm';
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            ['Date', 'Libellé', 'Montant', 'Type', 'Compte'].forEach(label => {
+                const th = document.createElement('th');
+                th.textContent = label;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            data.data.forEach(tx => {
+                const row = document.createElement('tr');
+
+                const dateCell = document.createElement('td');
+                dateCell.textContent = tx.date || '';
+                row.appendChild(dateCell);
+
+                const libelleCell = document.createElement('td');
+                libelleCell.textContent = tx.libelle || '';
+                row.appendChild(libelleCell);
+
+                const montantCell = document.createElement('td');
+                const sign = tx.montant > 0 ? '+' : '';
+                montantCell.textContent = `${sign}${tx.montant.toFixed(2)} ${tx.devise}`;
+                montantCell.style.color = tx.montant < 0 ? '#c53030' : '#2f855a';
+                montantCell.style.fontWeight = '600';
+                row.appendChild(montantCell);
+
+                const typeCell = document.createElement('td');
+                typeCell.textContent = tx.type_display || tx.type || '';
+                row.appendChild(typeCell);
+
+                const accountCell = document.createElement('td');
+                accountCell.textContent = tx.account_name || 'N/A';
+                row.appendChild(accountCell);
+
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            content.appendChild(table);
+
+            // Pagination
+            const pagination = data.pagination || {};
+            const totalPages = pagination.pages || 1;
+            const currentPage = pagination.page || page;
+
+            const prevButton = document.createElement('button');
+            prevButton.type = 'button';
+            prevButton.className = 'btn btn-admin btn-secondary';
+            prevButton.textContent = '← Précédent';
+            prevButton.disabled = currentPage <= 1;
+            prevButton.addEventListener('click', () => loadTransactions(userId, currentPage - 1));
+
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'text-muted';
+            pageInfo.textContent = `Page ${currentPage} / ${totalPages} (${pagination.total || 0} transactions)`;
+
+            const nextButton = document.createElement('button');
+            nextButton.type = 'button';
+            nextButton.className = 'btn btn-admin btn-secondary';
+            nextButton.textContent = 'Suivant →';
+            nextButton.disabled = currentPage >= totalPages;
+            nextButton.addEventListener('click', () => loadTransactions(userId, currentPage + 1));
+
+            paginationDiv.appendChild(prevButton);
+            paginationDiv.appendChild(pageInfo);
+            paginationDiv.appendChild(nextButton);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            setError(content, 'Erreur lors de la communication avec le serveur');
+        });
+}
+
+// Fonctions pour les autres actions
+function sendNotification(userId) {
+    showAlert('info', 'Fonctionnalité en développement');
+}
+
+function exportUserData(userId) {
+    showAlert('info', 'Export des données en cours...');
+}
+
+function viewUserSessions(userId) {
+    showAlert('info', 'Fonctionnalité en développement');
+}
+
+function resetPassword(userId) {
+    const message = `⚠️ Êtes-vous sûr de vouloir réinitialiser le mot de passe de cet utilisateur ?\n\nUn nouveau mot de passe temporaire sera généré.`;
+    
+    showConfirmModal(message, () => {
+        fetch(`/api/v1/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showAlert('success', data.message || 'Mot de passe réinitialisé');
+            } else {
+                showAlert('error', data.message || 'Erreur lors de la réinitialisation du mot de passe');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur lors de la réinitialisation:', error);
+            showAlert('error', 'Erreur lors de la communication avec le serveur');
+        });
+    });
+}
+
+function toggleUser(userId, activate) {
+    const action = activate ? 'activer' : 'désactiver';
+    const message = `⚠️ Êtes-vous sûr de vouloir ${action} cet utilisateur ?\n\n${activate ? 'L\'utilisateur pourra à nouveau se connecter.' : 'L\'utilisateur ne pourra plus se connecter à l\'application.'}`;
+    
+    showConfirmModal(message, () => {
+        fetch(`/api/v1/admin/users/${userId}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showAlert('success', data.message || 'Statut mis à jour');
+                // Recharger la page après 2 secondes pour mettre à jour l'interface
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                showAlert('error', data.message || `Erreur lors de la ${action === 'activer' ? 'activation' : 'désactivation'} de l'utilisateur`);
+            }
+        })
+        .catch(error => {
+            console.error(`Erreur lors de la ${action}:`, error);
+            showAlert('error', 'Erreur lors de la communication avec le serveur');
+        });
+    });
+}
+
+// Fonction utilitaire pour afficher la modal de confirmation
+function showConfirmModal(message, onConfirm) {
+    document.getElementById('confirmModalBody').textContent = message;
+    const confirmButton = document.getElementById('confirmButton');
+    
+    // Supprimer les anciens event listeners
+    const newConfirmButton = confirmButton.cloneNode(true);
+    confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+    
+    // Ajouter le nouveau event listener
+    newConfirmButton.addEventListener('click', () => {
+        hideConfirmModal();
+        onConfirm();
+    });
+    
+    // Afficher la modal
+    document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+// Fonction pour masquer la modal
+function hideConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+}
+
+// Fonction utilitaire pour afficher des alertes
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    
+    // Styles inline pour éviter les conflits Tailwind
+    const alertStyles = {
+        success: 'background-color: #f0fff4; border-left: 4px solid #68d391; color: #2f855a;',
+        error: 'background-color: #fed7d7; border-left: 4px solid #fc8181; color: #c53030;',
+        info: 'background-color: #ebf8ff; border-left: 4px solid #63b3ed; color: #3182ce;',
+        warning: 'background-color: #fffff0; border-left: 4px solid #f6e05e; color: #d69e2e;'
+    };
+    
+    alertDiv.style.cssText = `
+        position: fixed; 
+        top: 20px; 
+        right: 20px; 
+        z-index: 9999; 
+        padding: 16px; 
+        max-width: 450px; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+        white-space: pre-line; 
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        line-height: 1.4;
+        ${alertStyles[type] || alertStyles.error}
+    `;
+    
+    alertDiv.innerHTML = `
+        <div style="display: flex; align-items: flex-start;">
+            <div style="flex: 1; margin-right: 12px;">${message}</div>
+            <button type="button" style="background: none; border: none; font-size: 18px; font-weight: bold; cursor: pointer; opacity: 0.7; padding: 0;" onclick="this.parentElement.parentElement.remove()" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">×</button>
+        </div>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remove after 8 seconds pour les messages longs
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.style.animation = 'slideOutRight 0.3s ease-in';
+            setTimeout(() => alertDiv.remove(), 300);
+        }
+    }, 8000);
+}
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    const userId = parseInt(document.getElementById('userDetailsContainer').dataset.userId, 10);
+
+    // Activité récente et comptes chargés automatiquement
+    loadRecentActivity(userId);
+    loadAccounts(userId);
+
+    // Onglets Données financières
+    const tabAccounts = document.getElementById('tabAccounts');
+    const tabTransactions = document.getElementById('tabTransactions');
+    const accountsPanel = document.getElementById('accountsPanel');
+    const transactionsPanel = document.getElementById('transactionsPanel');
+    let transactionsLoaded = false;
+
+    tabAccounts.addEventListener('click', () => {
+        accountsPanel.classList.remove('d-none');
+        transactionsPanel.classList.add('d-none');
+        tabAccounts.classList.replace('btn-secondary', 'btn-primary');
+        tabTransactions.classList.replace('btn-primary', 'btn-secondary');
+        loadAccounts(userId);
+    });
+
+    tabTransactions.addEventListener('click', () => {
+        transactionsPanel.classList.remove('d-none');
+        accountsPanel.classList.add('d-none');
+        tabTransactions.classList.replace('btn-secondary', 'btn-primary');
+        tabAccounts.classList.replace('btn-primary', 'btn-secondary');
+        if (!transactionsLoaded) {
+            transactionsLoaded = true;
+            loadTransactions(userId, 1);
+        }
+    });
+});
+</script>
+{% endblock %}

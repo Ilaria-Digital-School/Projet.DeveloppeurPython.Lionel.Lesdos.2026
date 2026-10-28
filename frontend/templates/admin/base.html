@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/base.css') }}">
+    {% block admin_styles %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    {% block admin_content %}{% endblock %}
+</div>
+{% endblock %}

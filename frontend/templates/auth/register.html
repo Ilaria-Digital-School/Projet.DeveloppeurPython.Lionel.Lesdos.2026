@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Inscription - Gestion Budgétaire{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/register.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="auth-page">
+  <div class="register-container">
+    <div class="register-card">
+      <header class="register-header">
+        <h1>Créez votre compte</h1>
+        <p>Déjà un compte ? <a href="{{ url_for('auth.login') }}" class="fw-medium">Connectez-vous ici</a></p>
+      </header>
+      
+      <div class="register-body">
+        <!-- Messages flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" role="alert">
+                <div class="alert-content">
+                  {% if category == 'success' %}
+                    <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                  {% elif category == 'danger' %}
+                    <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                    </svg>
+                  {% endif %}
+                  <p>{{ message }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+                
+        <form method="POST" action="{{ url_for('auth.register') }}" class="register-form" novalidate>
+          {{ form.hidden_tag() }}
+          
+          <!-- Champs du formulaire -->
+          <div class="form-group">
+            <label for="{{ form.username.id }}" class="form-label">{{ form.username.label.text }} <span class="text-danger">*</span></label>
+            {{ form.username(
+                class="form-control" + (" is-invalid" if form.username.errors else ""),
+                placeholder="nom_utilisateur",
+                autocomplete="username",
+                **{'aria-describedby': form.username.id + '-help'}
+            ) }}
+            {% if form.username.errors %}
+              <div class="error-message" id="{{ form.username.id }}-error">
+                {{ form.username.errors[0] }}
+              </div>
+            {% endif %}
+          </div>
+          
+          
+          <div class="form-group">
+            <label for="{{ form.email.id }}" class="form-label">{{ form.email.label.text }} <span class="text-danger">*</span></label>
+            {{ form.email(
+                class="form-control" + (" is-invalid" if form.email.errors else ""),
+                placeholder="jean.dupont@example.com",
+                autocomplete="email",
+                **{'aria-describedby': form.email.id + '-help'}
+            ) }}
+            {% if form.email.errors %}
+              <div class="error-message" id="{{ form.email.id }}-error">
+                {{ form.email.errors[0] }}
+              </div>
+            {% else %}
+              <div class="form-text" id="{{ form.email.id }}-help">
+                Nous ne partagerons jamais votre email avec qui que ce soit.
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group">
+            <label for="{{ form.password.id }}" class="form-label">{{ form.password.label.text }} <span class="text-danger">*</span></label>
+            <div class="password-wrapper">
+              {{ form.password(
+                  class="form-control" + (" is-invalid" if form.password.errors else ""),
+                  placeholder="••••••••",
+                  autocomplete="new-password",
+                  **{'aria-describedby': form.password.id + '-help'}
+              ) }}
+              <button type="button" class="toggle-password" aria-label="Afficher le mot de passe">
+                <span class="toggle-icon" aria-hidden="true">👁️</span>
+              </button>
+            </div>
+            {% if form.password.errors %}
+              <div class="error-message" id="{{ form.password.id }}-error">
+                {{ form.password.errors[0] }}
+              </div>
+            {% else %}
+              <div class="form-text" id="{{ form.password.id }}-help">
+                Au moins 8 caractères, une majuscule, une minuscule et un chiffre.
+              </div>
+            {% endif %}
+          </div>
+          
+          <div class="form-group">
+            <label for="{{ form.password2.id }}" class="form-label">{{ form.password2.label.text }} <span class="text-danger">*</span></label>
+            <div class="password-wrapper">
+              {{ form.password2(
+                  class="form-control" + (" is-invalid" if form.password2.errors else ""),
+                  placeholder="••••••••",
+                  autocomplete="new-password",
+                  **{'aria-describedby': form.password2.id + '-help'}
+              ) }}
+              <button type="button" class="toggle-password" aria-label="Afficher le mot de passe">
+                <span class="toggle-icon" aria-hidden="true">👁️</span>
+              </button>
+            </div>
+            {% if form.password2.errors %}
+              <div class="error-message" id="{{ form.password2.id }}-error">
+                {{ form.password2.errors[0] }}
+              </div>
+            {% endif %}
+          </div>
+          
+          <!-- Note: Conditions d'utilisation acceptées implicitement lors de l'inscription -->
+          <div class="text-center mb-3">
+            <small class="text-muted">
+              En vous inscrivant, vous acceptez nos conditions d'utilisation et notre politique de confidentialité.
+            </small>
+          </div>
+          
+          <button type="submit" class="btn-register" id="submit-button">
+            <span class="button-text">Créer mon compte</span>
+          </button>
+        </form>
+        
+        <div class="text-center mt-4">
+          <p class="text-muted">En vous inscrivant, vous acceptez nos conditions d'utilisation et notre politique de confidentialité.</p>
+        </div>
+      </div>
+      
+      <footer class="register-footer">
+        <p class="text-muted small mt-2">&copy; 2026 Gestion Budgétaire. Tous droits réservés.</p>
+      </footer>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Script de débogage temporaire
+console.log('IDs des champs du formulaire:');
+console.log('username id:', '{{ form.username.id }}');
+console.log('email id:', '{{ form.email.id }}');
+console.log('password id:', '{{ form.password.id }}');
+console.log('password2 id:', '{{ form.password2.id }}');
+</script>
+<script src="{{ url_for('static', filename='js/pages/register.js') }}"></script>
+{% endblock %}

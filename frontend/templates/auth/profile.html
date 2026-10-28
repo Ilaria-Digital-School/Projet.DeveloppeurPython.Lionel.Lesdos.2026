@@ -1,0 +1,738 @@
+{% extends "base.html" %}
+
+{% block title %}Profil Utilisateur - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- Feuille de style spécifique à la page de profil -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/profile.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <!-- En-tête du profil -->
+    <div class="profile-header">
+        <div class="relative inline-block">
+            <div class="profile-avatar"{% if current_user.avatar_url %} style="position: relative;"{% endif %}>
+                {% set first_initial = current_user.first_name|first|upper if current_user.first_name else '' %}
+                {% set last_initial = current_user.last_name|first|upper if current_user.last_name else '' %}
+                {% if first_initial or last_initial %}
+                    {{ first_initial }}{{ last_initial }}
+                {% else %}
+                    {{ current_user.username|first|upper }}
+                {% endif %}
+                {% if current_user.avatar_url %}
+                <img src="{{ current_user.avatar_url }}" alt="Photo de profil"
+                     class="w-full h-full rounded-full object-cover"
+                     style="position: absolute; top: 0; left: 0; z-index: 1;">
+                {% endif %}
+            </div>
+            <label for="avatar-upload" class="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full p-2 cursor-pointer hover:bg-blue-600 transition-colors">
+                <i class="fas fa-camera"></i>
+                <input type="file" id="avatar-upload" class="hidden" accept="image/*">
+            </label>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mt-4">{{ current_user.full_name() }}</h1>
+        <p class="text-gray-600">{{ current_user.email }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Informations du profil -->
+        <div class="lg:col-span-2">
+            <form id="profile-form" method="POST" action="{{ url_for('profile_bp.profile') }}" class="profile-section" enctype="multipart/form-data">
+                {{ form.hidden_tag() }}
+                <h2><i class="fas fa-user-edit mr-2"></i>Informations personnelles</h2>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        {{ form.first_name.label }}
+                        {{ form.first_name(class_="form-control") }}
+                        {% for error in form.first_name.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.last_name.label }}
+                        {{ form.last_name(class_="form-control") }}
+                        {% for error in form.last_name.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.email.label }}
+                        {{ form.email(class_="form-control") }}
+                        {% for error in form.email.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.phone.label }}
+                        {{ form.phone(class_="form-control") }}
+                        {% for error in form.phone.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.language.label }}
+                        {{ form.language(class_="form-control") }}
+                        {% for error in form.language.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.timezone.label }}
+                        {{ form.timezone(class_="form-control") }}
+                        {% for error in form.timezone.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.address.label }}
+                        {{ form.address(class_="form-control", rows=3) }}
+                        {% for error in form.address.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.city.label }}
+                        {{ form.city(class_="form-control") }}
+                        {% for error in form.city.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.postal_code.label }}
+                        {{ form.postal_code(class_="form-control") }}
+                        {% for error in form.postal_code.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.country.label }}
+                        {{ form.country(class_="form-control") }}
+                        {% for error in form.country.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                </div>
+                
+                <div class="mt-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="profile_csrf_token">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save mr-2"></i>Enregistrer les modifications
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Formulaire de changement de mot de passe -->
+            {% if change_password_form %}
+            <form id="password-form" method="POST" action="{{ url_for('profile_bp.change_password') }}" class="profile-section mt-6" autocomplete="on">
+                {{ change_password_form.hidden_tag() }}
+                <h2><i class="fas fa-key mr-2"></i>Changer le mot de passe</h2>
+                
+                <!-- Champ de nom d'utilisateur masqué pour l'accessibilité -->
+                <div style="display: none;">
+                    <input type="text" name="username" autocomplete="username" value="{{ current_user.username }}">
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        {{ change_password_form.current_password.label(for="current_password") }}
+                        {{ change_password_form.current_password(
+                            class_="form-control",
+                            autocomplete="current-password",
+                            id="current_password"
+                        ) }}
+                        {% for error in change_password_form.current_password.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ change_password_form.new_password.label(for="new_password") }}
+                        {{ change_password_form.new_password(
+                            class_="form-control",
+                            autocomplete="new-password",
+                            id="new_password"
+                        ) }}
+                        {% for error in change_password_form.new_password.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ change_password_form.confirm_password.label(for="confirm_new_password") }}
+                        {{ change_password_form.confirm_password(
+                            class_="form-control",
+                            autocomplete="new-password",
+                            id="confirm_new_password"
+                        ) }}
+                        {% for error in change_password_form.confirm_password.errors %}
+                            <span class="text-red-500 text-sm">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="password_csrf_token">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-key mr-2"></i>Changer le mot de passe
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+        
+        <!-- Préférences et actions -->
+        <div class="space-y-6">
+            <!-- Section des préférences -->
+            <div class="profile-section">
+                <h2><i class="fas fa-cog mr-2"></i>Préférences</h2>
+                
+                <div class="space-y-4">
+                    <div class="text-sm text-gray-600 mb-4">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Le mode sombre peut être activé via le menu principal (icône lune/soleil).
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="language">Langue</label>
+                        <select id="language" name="language" class="form-control">
+                            <option value="fr" {% if current_user.language == 'fr' %}selected{% endif %}>Français</option>
+                            <option value="en" {% if current_user.language == 'en' %}selected{% endif %}>English</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="currency">Devise</label>
+                        <select id="currency" name="currency" class="form-control">
+                            <option value="EUR" {% if current_user.currency == 'EUR' %}selected{% endif %}>Euro (€)</option>
+                            <option value="USD" {% if current_user.currency == 'USD' %}selected{% endif %}>Dollar US ($)</option>
+                            <option value="CHF" {% if current_user.currency == 'CHF' %}selected{% endif %}>Franc suisse (CHF)</option>
+                            <option value="CAD" {% if current_user.currency == 'CAD' %}selected{% endif %}>Dollar canadien (C$)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date_format">Format de date</label>
+                        <select id="date_format" name="date_format" class="form-control">
+                            <option value="DD/MM/YYYY" {% if current_user.date_format == 'DD/MM/YYYY' %}selected{% endif %}>JJ/MM/AAAA</option>
+                            <option value="MM/DD/YYYY" {% if current_user.date_format == 'MM/DD/YYYY' %}selected{% endif %}>MM/JJ/AAAA</option>
+                            <option value="YYYY-MM-DD" {% if current_user.date_format == 'YYYY-MM-DD' %}selected{% endif %}>AAAA-MM-JJ</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section des notifications -->
+            <div class="profile-section">
+                <h2><i class="fas fa-bell mr-2"></i>Notifications</h2>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium">Notifications par email</h3>
+                            <p class="text-sm text-gray-500">Personnaliser les types de notifications à recevoir</p>
+                        </div>
+                        <button id="open-email-notifications-modal" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm transition-colors">
+                            <i class="fas fa-cog mr-2"></i>Configurer
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium">Alertes budgétaires</h3>
+                            <p class="text-sm text-gray-500">Recevoir des alertes pour les dépassements de budget</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" value="" class="sr-only peer" 
+                                   id="budget-alerts" 
+                                   {% if notification_preferences.budget_alerts %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium">Rapports mensuels</h3>
+                            <p class="text-sm text-gray-500">Recevoir un rapport mensuel par email</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" value="" class="sr-only peer" 
+                                   id="monthly-reports" 
+                                   {% if notification_preferences.monthly_reports %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section des actions -->
+            <div class="profile-section">
+                <h2><i class="fas fa-shield-alt mr-2"></i>Sécurité</h2>
+                
+                <div class="space-y-4">
+                    <!-- Toggle 2FA -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-gray-900 flex items-center">
+                                    <i class="fas fa-shield-alt text-blue-500 mr-2"></i>
+                                    Vérification en deux étapes par email
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">Protection renforcée de votre compte</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span id="2fa-status" class="text-sm font-medium">
+                                    {% if current_user.two_factor_enabled %}
+                                        Activée
+                                    {% else %}
+                                        Désactivée
+                                    {% endif %}
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="2fa-toggle" class="sr-only peer" 
+                                           data-current-status="{{ 'true' if current_user.two_factor_enabled else 'false' }}"
+                                           {% if current_user.two_factor_enabled %}checked{% endif %}>
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <!-- Section Appareils connectés -->
+            <div class="profile-section">
+                <div class="flex items-center justify-between">
+                    <h2><i class="fas fa-laptop mr-2"></i>Appareils connectés</h2>
+                    <button id="refresh-devices-btn" class="text-sm text-blue-600 hover:text-blue-700">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+
+                <div id="devices-loading" class="text-center py-3 text-gray-500">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>Chargement...
+                </div>
+                <div id="devices-list" class="space-y-2 hidden"></div>
+                <div id="devices-empty" class="text-center py-3 text-sm text-gray-500 hidden">
+                    Aucun appareil enregistré.
+                </div>
+                <div id="devices-error" class="text-center py-3 text-sm text-red-500 hidden">
+                    Erreur lors du chargement.
+                </div>
+            </div>
+
+            <!-- Section dangereuse -->
+            <div class="profile-section border-red-200 bg-red-50">
+                <h2 class="text-red-700"><i class="fas fa-exclamation-triangle mr-2"></i>Gestion du compte</h2>
+                
+                <div class="space-y-3">
+                    <button type="button" id="export-data-btn" class="w-full text-left px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-between">
+                        <span><i class="fas fa-file-export mr-3"></i>Exporter mes données</span>
+                        <i class="fas fa-download text-red-400"></i>
+                    </button>
+
+                    <button type="button" id="delete-account-btn" class="w-full text-left px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-between">
+                        <span><i class="fas fa-trash-alt mr-3"></i>Supprimer mon compte</span>
+                        <i class="fas fa-trash text-red-400"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de configuration des notifications email -->
+<div id="email-notifications-modal" class="fixed inset-0 bg-gray-600/50 hidden z-50">
+  <div class="relative top-4 mx-auto p-0 w-11/12 max-w-4xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-hidden">
+    
+    <!-- En-tête Modal -->
+    <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
+      <h2 class="text-xl font-semibold"><i class="fas fa-envelope mr-2"></i>Configuration des notifications par email</h2>
+      <button id="close-email-notifications-modal" class="text-white hover:text-gray-200">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    
+    <!-- Contenu Modal -->
+    <div class="modal-content overflow-y-auto p-6" style="max-height: calc(90vh - 140px);">
+      
+      <div class="mb-6">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-center">
+            <i class="fas fa-info-circle text-blue-600 mr-3"></i>
+            <div>
+              <p class="text-sm text-blue-800">
+                Choisissez les types de notifications que vous souhaitez recevoir par email.
+                Les notifications push dans l'interface restent toujours actives.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grille des catégories de notifications -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Catégorie: Transactions -->
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-exchange-alt text-green-600 mr-2"></i>
+            Transactions
+          </h3>
+          <div class="space-y-3">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Création de transaction</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="transaction_created">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Modification de transaction</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="transaction_updated">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Suppression de transaction</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="transaction_deleted">
+            </label>
+          </div>
+        </div>
+
+        <!-- Catégorie: Comptes -->
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-university text-blue-600 mr-2"></i>
+            Comptes bancaires
+          </h3>
+          <div class="space-y-3">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Création de compte</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="account_created">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Modification de compte</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="account_updated">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Suppression de compte</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="account_deleted">
+            </label>
+          </div>
+        </div>
+
+        <!-- Catégorie: Catégories -->
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-tags text-purple-600 mr-2"></i>
+            Catégories
+          </h3>
+          <div class="space-y-3">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Création de catégorie</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="category_created">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Modification de catégorie</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="category_updated">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Suppression de catégorie</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="category_deleted">
+            </label>
+          </div>
+        </div>
+
+        <!-- Catégorie: Profil & Sécurité -->
+        <div class="bg-gray-50 rounded-lg p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-user-shield text-red-600 mr-2"></i>
+            Profil & Sécurité
+          </h3>
+          <div class="space-y-3">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Modification du profil</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="profile_updated">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Changement de mot de passe</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="password_changed">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Alertes de sécurité</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="security_alert">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Notifications générales</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="general_email">
+            </label>
+          </div>
+        </div>
+
+        <!-- Catégorie: Budgets & Rapports -->
+        <div class="bg-gray-50 rounded-lg p-6 md:col-span-2">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fas fa-chart-pie text-yellow-600 mr-2"></i>
+            Budgets & Rapports
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Alertes budgétaires (seuils dépassés)</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="budget_alert">
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+              <span class="text-sm">Rapports mensuels</span>
+              <input type="checkbox" class="notification-checkbox rounded" 
+                     data-type="monthly_report">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions de la modal -->
+      <div class="mt-8 flex justify-between">
+        <div class="flex space-x-3">
+          <button id="select-all-notifications" class="px-4 py-2 text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors">
+            <i class="fas fa-check-double mr-2"></i>Tout sélectionner
+          </button>
+          <button id="deselect-all-notifications" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+            <i class="fas fa-times mr-2"></i>Tout désélectionner
+          </button>
+        </div>
+        <div class="flex space-x-3">
+          <button id="cancel-email-notifications" class="px-6 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors">
+            Annuler
+          </button>
+          <button id="save-email-notifications" class="px-6 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+            <i class="fas fa-save mr-2"></i>Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modals 2FA avec design harmonisé -->
+
+<!-- Modal pour activer/désactiver la 2FA -->
+<div id="enable-2fa-modal" class="fixed inset-0 bg-black/50 hidden z-50 overflow-y-auto overflow-x-hidden">
+  <div class="relative p-4 w-full max-w-md h-full md:h-auto mx-auto flex items-center justify-center min-h-screen">
+    <!-- Modal content -->
+    <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+      <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+          <i class="fas fa-envelope mr-2"></i>Vérification par email
+        </h3>
+        <button type="button" class="close-2fa-modal text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white">
+          <i class="fas fa-times w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <div class="p-6 space-y-6">
+        <!-- Activation 2FA -->
+        <div id="email-2fa-activation" class="hidden">
+          <div class="text-center">
+            <i class="fas fa-envelope text-blue-600 text-4xl mb-4"></i>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">Code envoyé par email</h4>
+            <p class="text-gray-600 mb-4">Saisissez le code reçu à {{ current_user.email }}</p>
+          </div>
+          
+          <div class="space-y-4">
+            <input type="text" id="email-2fa-verification-code" class="bg-gray-50 border border-gray-300 text-gray-900 text-2xl font-mono rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 text-center dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" 
+                   placeholder="123456" maxlength="6">
+            
+            <button id="confirm-2fa-activation" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" style="background-color: #1d4ed8 !important; color: white !important; padding: 12px !important; border: none !important; cursor: pointer !important;">
+              <i class="fas fa-check mr-2"></i>Confirmer l'activation
+            </button>
+          </div>
+        </div>
+        
+        <!-- Désactivation 2FA -->
+        <div id="email-2fa-deactivation" class="hidden">
+          <div class="text-center">
+            <i class="fas fa-exclamation-triangle text-red-600 text-4xl mb-4"></i>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">Désactiver la 2FA</h4>
+            <p class="text-gray-600 mb-4">Entrez votre mot de passe pour confirmer</p>
+          </div>
+          
+          <div class="space-y-4">
+            <input type="password" id="password-2fa-deactivation" class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" 
+                   placeholder="Mot de passe">
+            
+            <button id="confirm-2fa-deactivation" class="w-full text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800" style="background-color: #dc2626 !important; color: white !important; padding: 12px !important; border: none !important; cursor: pointer !important;">
+              <i class="fas fa-times mr-2"></i>Désactiver la 2FA
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de suppression de compte -->
+<div id="delete-account-modal" class="fixed inset-0 bg-black/50 hidden z-50 overflow-y-auto overflow-x-hidden">
+  <div class="relative p-4 w-full max-w-md h-full md:h-auto mx-auto flex items-center justify-center min-h-screen">
+    <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+      <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+        <h3 class="text-xl font-semibold text-red-600">
+          <i class="fas fa-exclamation-triangle mr-2"></i>Supprimer mon compte
+        </h3>
+        <button type="button" id="close-delete-account-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white">
+          <i class="fas fa-times w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p class="text-sm text-red-800">
+            <i class="fas fa-info-circle mr-2"></i>
+            Votre compte sera désactivé immédiatement et supprimé définitivement après 7 jours.
+            Vous pouvez annuler en vous reconnectant avant cette date.
+          </p>
+        </div>
+
+        <div>
+          <label for="delete-account-password" class="block text-sm font-medium text-gray-700 mb-1">
+            Confirmez votre mot de passe
+          </label>
+          <input type="password" id="delete-account-password"
+                 class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white"
+                 placeholder="Votre mot de passe">
+        </div>
+
+        <div id="delete-account-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-3">
+          <p class="text-sm text-red-800"></p>
+        </div>
+
+        <div class="flex space-x-3 pt-2">
+          <button id="cancel-delete-account" class="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors">
+            Annuler
+          </button>
+          <button id="confirm-delete-account" class="flex-1 px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors" style="background-color: #dc2626 !important; color: white !important;">
+            <i class="fas fa-trash-alt mr-2"></i>Supprimer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Script spécifique à la page de profil -->
+<script src="{{ url_for('static', filename='js/pages/profile.js') }}?v=3"></script>
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    function getDeviceIcon(type) {
+        if (type === 'mobile') return 'fa-mobile-alt';
+        if (type === 'tablet') return 'fa-tablet-alt';
+        return 'fa-desktop';
+    }
+
+    function formatDate(iso) {
+        if (!iso) return 'Jamais';
+        return new Date(iso).toLocaleDateString('fr-FR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    function renderDevice(d) {
+        var revoked = !d.is_active;
+        var badge = revoked
+            ? '<span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Révoqué</span>'
+            : '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Actif</span>';
+        var revokeBtn = !revoked
+            ? '<button onclick="window._revokeDevice(\'' + d.id + '\')" class="text-red-500 hover:text-red-700 text-sm ml-2" title="Révoquer"><i class="fas fa-ban"></i></button>'
+            : '';
+        return '<div class="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg ' + (revoked ? 'opacity-50' : '') + '">' +
+            '<div class="flex items-center space-x-3">' +
+                '<i class="fas ' + getDeviceIcon(d.device_type) + ' text-gray-400 text-lg"></i>' +
+                '<div>' +
+                    '<div class="text-sm font-medium text-gray-800">' + (d.name || 'Inconnu') + '</div>' +
+                    '<div class="text-xs text-gray-500">' + (d.os || '') + ' — ' + (d.browser || '') + '</div>' +
+                    '<div class="text-xs text-gray-400">Dernière utilisation : ' + formatDate(d.last_used) + '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="flex items-center">' + badge + revokeBtn + '</div>' +
+        '</div>';
+    }
+
+    function loadDevices() {
+        var listEl = document.getElementById('devices-list');
+        var loadingEl = document.getElementById('devices-loading');
+        var emptyEl = document.getElementById('devices-empty');
+        var errorEl = document.getElementById('devices-error');
+        if (!listEl) return;
+
+        loadingEl.classList.remove('hidden');
+        listEl.classList.add('hidden');
+        emptyEl.classList.add('hidden');
+        errorEl.classList.add('hidden');
+
+        fetch('/api/v1/devices')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loadingEl.classList.add('hidden');
+                var devices = data.devices;
+                if (data.status === 'success' && devices && devices.length > 0) {
+                    listEl.innerHTML = devices.map(renderDevice).join('');
+                    listEl.classList.remove('hidden');
+                } else if (data.status === 'success') {
+                    emptyEl.classList.remove('hidden');
+                } else {
+                    errorEl.classList.remove('hidden');
+                }
+            })
+            .catch(function() {
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+            });
+    }
+
+    window._revokeDevice = function(publicId) {
+        if (!confirm('Révoquer cet appareil ? Il devra se reconnecter.')) return;
+        fetch('/api/v1/devices/' + publicId, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') loadDevices();
+            else alert(data.message || 'Erreur.');
+        })
+        .catch(function() { alert('Erreur réseau.'); });
+    };
+
+    document.getElementById('refresh-devices-btn')?.addEventListener('click', loadDevices);
+    loadDevices();
+})();
+</script>
+{% endblock %}

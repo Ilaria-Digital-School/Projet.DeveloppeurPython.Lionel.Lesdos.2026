@@ -1,0 +1,761 @@
+{% extends "base.html" %}
+
+{% block title %}Comptes - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+  <!-- Token CSRF pour les requêtes AJAX -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome/css/all.min.css') }}">
+  
+  <!-- Feuille de style spécifique aux comptes -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/accounts.css') }}?v=20250805-2">
+{% endblock %}
+
+{% block extra_js %}
+<script defer src="{{ url_for('static', filename='js/pages/accounts.js') }}?v=2"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <!-- En-tête -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">
+      Comptes
+      <span class="sr-only">- Gestion de budget personnel</span>
+    </h1>
+    <p class="text-gray-600">Gérez vos comptes bancaires et portefeuilles</p>
+  </div>
+  
+  <!-- Boutons d'action -->
+  <div class="mb-6 flex flex-wrap gap-4">
+    <button id="add-account-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" data-modal-toggle="add-account-modal">
+      <i class="fas fa-plus mr-2"></i> Ajouter un compte
+    </button>
+    <button id="import-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded" style="display: inline-block !important; visibility: visible !important; background-color: #f97316 !important;">
+      <i class="fas fa-upload mr-2"></i> Importer
+    </button>
+    <button id="export-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+      <i class="fas fa-download mr-2"></i> Exporter
+    </button>
+  </div>
+  
+  <!-- Conteneur des alertes -->
+  <div id="alert-container"></div>
+  
+  <!-- Tableau des comptes -->
+  <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 accounts-table-main">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Nom du compte
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Type
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Solde
+            </th>
+            <th scope="col" class="pr-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            <!-- Boucle sur les comptes de l'utilisateur -->
+            {% for account in accounts %}
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-10 w-10">
+                    <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <i class="fas fa-wallet text-blue-600"></i>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <div class="text-sm font-medium text-gray-900">{{ account.name or 'Compte sans nom' }}</div>
+                    <div class="text-sm text-gray-500">{{ account.currency or 'EUR' }} • {{ (account.account_type or 'courant')|title }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">{{ (account.account_type or 'courant')|replace('_', ' ')|title }}</div>
+                <div class="text-sm text-gray-500">
+                  {% if account.is_active %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <i class="fas fa-check-circle mr-1"></i> Actif
+                    </span>
+                  {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <i class="fas fa-pause-circle mr-1"></i> Inactif
+                    </span>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium {{ 'text-green-600' if (account.balance or 0) >= 0 else 'text-red-600' }}">
+                  {{ "%0.2f"|format((account.balance or 0)|abs) }} {{ account.currency or 'EUR' }}
+                </div>
+                <div class="text-sm text-gray-500">Solde actuel</div>
+              </td>
+              <td class="py-4 whitespace-nowrap text-sm font-medium" style="text-align: right !important; padding-left: 24px !important; padding-right: 24px !important;">
+                <button class="edit-account text-blue-600 hover:text-blue-900 mr-2" data-account-id="{{ account.id }}">
+                  <i class="fas fa-edit mr-1"></i> Modifier
+                </button>
+                <button class="delete-account text-red-600 hover:text-red-900" data-account-id="{{ account.id }}">
+                  <i class="fas fa-trash mr-1"></i> Supprimer
+                </button>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4" class="px-6 py-12 text-center">
+                <div class="text-gray-500">
+                  <i class="fas fa-wallet text-gray-400 text-3xl mb-4"></i>
+                  <p class="text-lg mb-2">Aucun compte trouvé</p>
+                  <button id="add-first-account" class="text-blue-600 hover:text-blue-800 font-medium" data-modal-toggle="add-account-modal">
+                    Créer votre premier compte
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+    </div>
+  </div>
+</div>
+
+    <!-- Modal d'ajout de compte -->
+    <div id="add-account-modal" role="dialog" aria-labelledby="modal-title" aria-modal="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-black/50">
+      <div class="relative p-4 w-full max-w-2xl h-full md:h-auto">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+          <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+              Ajouter un nouveau compte
+            </h3>
+            <button type="button" 
+                  class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white"
+                  data-modal-hide="add-account-modal"
+                  aria-label="Fermer la fenêtre modale">
+            <i class="fas fa-times w-5 h-5" aria-hidden="true"></i>
+            <span class="sr-only">Fermer la fenêtre modale</span>
+          </button>
+          </div>
+          
+          <form id="account-form" method="POST" action="#" class="p-6 space-y-6" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="account_csrf_token">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Colonne de gauche -->
+              <div class="space-y-6">
+                <div>
+                  <div class="form-group">
+                    <label for="name" class="form-label">
+                      {{ form.name.label }}<span class="text-red-600" aria-hidden="true">*</span>
+                      <span class="sr-only">(obligatoire)</span>
+                    </label>
+                    {{ form.name(
+                      class="form-input" + (' error' if form.name.errors else ''),
+                      **{'aria-required': 'true', 'aria-invalid': 'true' if form.name.errors else 'false'}
+                    ) }}
+                    {% if form.name.errors %}
+                      <p id="name-error" class="error-message" role="alert">
+                        <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                        {{ form.name.errors[0] }}
+                      </p>
+                    {% endif %}
+                  </div>
+                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                      <label for="account_type" class="form-label">
+                        {{ form.account_type.label }}<span class="text-red-600" aria-hidden="true">*</span>
+                        <span class="sr-only">(obligatoire)</span>
+                      </label>
+                      {{ form.account_type(
+                        class="form-select" + (' error' if form.account_type.errors else ''),
+                        **{'aria-required': 'true', 'aria-invalid': 'true' if form.account_type.errors else 'false'}
+                      ) }}
+                      {% if form.account_type.errors %}
+                        <p id="account_type-error" class="error-message" role="alert">
+                          <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                          {{ form.account_type.errors[0] }}
+                        </p>
+                      {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                      <label for="currency" class="form-label">
+                        {{ form.currency.label }}<span class="text-red-600" aria-hidden="true">*</span>
+                        <span class="sr-only">(obligatoire)</span>
+                      </label>
+                      {{ form.currency(
+                        class="form-select" + (' error' if form.currency.errors else ''),
+                        **{'aria-required': 'true', 'aria-invalid': 'true' if form.currency.errors else 'false'}
+                      ) }}
+                      {% if form.currency.errors %}
+                        <p id="currency-error" class="error-message" role="alert">
+                          <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                          {{ form.currency.errors[0] }}
+                        </p>
+                      {% endif %}
+                    </div>
+                  </div>
+                
+                <div>
+                  <label for="initial_balance" class="form-label">
+                    {{ form.initial_balance.label }}
+                  </label>
+                  <div class="relative">
+                    <span id="currency-symbol" class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none currency-symbol">€</span>
+                    {{ form.initial_balance(
+                      class="pl-7 form-input" + (' error' if form.initial_balance.errors else ''),
+                      type="number",
+                      step="0.01",
+                      min="0",
+                      **{'aria-describedby': 'initial_balance-help',
+                         'aria-invalid': 'true' if form.initial_balance.errors else 'false'}
+                    ) }}
+                  </div>
+                  <p id="initial_balance-help" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Le solde initial peut être négatif pour les comptes à découvert autorisé.
+                  </p>
+                  {% if form.initial_balance.errors %}
+                    <p id="initial_balance-error" class="error-message" role="alert">
+                      <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                      {{ form.initial_balance.errors[0] }}
+                    </p>
+                  {% endif %}
+                </div>
+                
+                <div class="form-group">
+                  <div class="flex items-center">
+                    <div class="flex items-center h-5">
+                      {{ form.is_active(
+                        class="form-checkbox" + (' error' if form.is_active.errors else ''),
+                        **{'aria-invalid': 'true' if form.is_active.errors else 'false'}
+                      ) }}
+                      <label for="is_active" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                        {{ form.is_active.label }}
+                      </label>
+                    </div>
+                  </div>
+                  {% if form.is_active.errors %}
+                    <p id="is_active-error" class="error-message mt-1" role="alert">
+                      <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                      {{ form.is_active.errors[0] }}
+                    </p>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <!-- Colonne de droite -->
+              <div class="space-y-6">
+                <div>
+                  <label for="bank_name" class="form-label">
+                    {{ form.bank_name.label }}
+                  </label>
+                  {{ form.bank_name(class="form-input" + (' error' if form.bank_name.errors else '')) }}
+                  {% if form.bank_name.errors %}
+                    <p class="error-message">{{ form.bank_name.errors[0] }}</p>
+                  {% endif %}
+                </div>
+                
+                <div>
+                  <label for="account_number" class="form-label">
+                    {{ form.account_number.label }}
+                  </label>
+                  {{ form.account_number(class="form-input" + (' error' if form.account_number.errors else '')) }}
+                  {% if form.account_number.errors %}
+                    <p class="error-message">{{ form.account_number.errors[0] }}</p>
+                  {% endif %}
+                </div>
+                
+                <div class="form-group">
+                  <label for="iban" class="form-label">
+                    {{ form.iban.label }}
+                  </label>
+                  {{ form.iban(
+                    class="form-input" + (' error' if form.iban.errors else ''),
+                    placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX",
+                    **{'aria-describedby': 'iban-help',
+                       'aria-invalid': 'true' if form.iban.errors else 'false'}
+                  ) }}
+                  <p id="iban-help" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Facultatif - Format international (27 caractères maximum)
+                  </p>
+                  {% if form.iban.errors %}
+                    <p id="iban-error" class="error-message" role="alert">
+                      <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                      {{ form.iban.errors[0] }}
+                    </p>
+                  {% endif %}
+                </div>
+                
+                <div class="form-group">
+                  <label for="bic" class="form-label">
+                    {{ form.bic.label }}
+                  </label>
+                  {{ form.bic(
+                    class="form-input" + (' error' if form.bic.errors else ''),
+                    placeholder="XXXXXXXXXXX",
+                    **{'aria-describedby': 'bic-help',
+                       'aria-invalid': 'true' if form.bic.errors else 'false'}
+                  ) }}
+                  <p id="bic-help" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Facultatif - Code BIC/SWIFT (8 ou 11 caractères)
+                  </p>
+                  {% if form.bic.errors %}
+                    <p id="bic-error" class="error-message" role="alert">
+                      <i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>
+                      {{ form.bic.errors[0] }}
+                    </p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer de la modale -->
+            <div class="flex items-center justify-end p-6 space-x-3 border-t border-gray-200 rounded-b dark:border-gray-700">
+              <button type="button" 
+                      class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
+                      data-modal-hide="add-account-modal"
+                      aria-label="Annuler et fermer la fenêtre modale">
+                Annuler
+              </button>
+              <button type="submit" 
+                      class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      aria-label="Enregistrer les modifications">
+                <span class="flex items-center">
+                  <i class="fas fa-save mr-2" aria-hidden="true"></i>
+                  Enregistrer
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <!-- Modal de modification de compte -->
+    <div id="edit-account-modal" role="dialog" aria-labelledby="edit-modal-title" aria-modal="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-black/50">
+      <div class="relative p-4 w-full max-w-2xl h-full md:h-auto">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+          <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+            <h3 id="edit-modal-title" class="text-xl font-semibold text-gray-900 dark:text-white">
+              Modifier le compte
+            </h3>
+            <button type="button" 
+                  class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white"
+                  data-modal-hide="edit-account-modal"
+                  aria-label="Fermer la fenêtre modale">
+            <i class="fas fa-times w-5 h-5" aria-hidden="true"></i>
+            <span class="sr-only">Fermer la fenêtre modale</span>
+          </button>
+          </div>
+          
+          <form id="edit-account-form" method="POST" action="#" class="p-6 space-y-6" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" id="edit_account_csrf_token">
+            <input type="hidden" name="account_id" id="edit_account_id">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Colonne de gauche -->
+              <div class="space-y-6">
+                <div>
+                  <div class="form-group">
+                    <label for="edit_name" class="form-label">
+                      Nom du compte<span class="text-red-600" aria-hidden="true">*</span>
+                      <span class="sr-only">(obligatoire)</span>
+                    </label>
+                    <input type="text" 
+                           id="edit_name" 
+                           name="name" 
+                           class="form-input"
+                           aria-required="true"
+                           required>
+                  </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="form-group">
+                    <label for="edit_account_type" class="form-label">
+                      Type de compte<span class="text-red-600" aria-hidden="true">*</span>
+                      <span class="sr-only">(obligatoire)</span>
+                    </label>
+                    <select id="edit_account_type" 
+                            name="account_type" 
+                            class="form-select"
+                            aria-required="true"
+                            required>
+                      <option value="checking">Courant</option>
+                      <option value="savings">Épargne</option>
+                      <option value="credit_card">Carte de crédit</option>
+                      <option value="cash">Espèces</option>
+                      <option value="investment">Investissement</option>
+                      <option value="loan">Prêt</option>
+                      <option value="other">Autre</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="edit_currency" class="form-label">
+                      Devise<span class="text-red-600" aria-hidden="true">*</span>
+                      <span class="sr-only">(obligatoire)</span>
+                    </label>
+                    <select id="edit_currency" 
+                            name="currency" 
+                            class="form-select"
+                            aria-required="true"
+                            required>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="CHF">CHF</option>
+                    </select>
+                  </div>
+                </div>
+              
+                <div>
+                  <label for="edit_initial_balance" class="form-label">
+                    Solde actuel
+                  </label>
+                  <div class="relative">
+                    <span id="edit-currency-symbol" class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none currency-symbol">€</span>
+                    <input type="number" 
+                           id="edit_initial_balance" 
+                           name="initial_balance" 
+                           class="form-input pl-7"
+                           step="0.01">
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <div class="flex items-center">
+                    <div class="flex items-center h-5">
+                      <input type="checkbox" 
+                             id="edit_is_active" 
+                             name="is_active" 
+                             class="form-checkbox"
+                             checked>
+                      <label for="edit_is_active" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                        Compte actif
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Colonne de droite -->
+              <div class="space-y-6">
+                <div>
+                  <label for="edit_bank_name" class="form-label">
+                    Nom de la banque
+                  </label>
+                  <input type="text" 
+                         id="edit_bank_name" 
+                         name="bank_name" 
+                         class="form-input">
+                </div>
+                
+                <div>
+                  <label for="edit_account_number" class="form-label">
+                    Numéro de compte
+                  </label>
+                  <input type="text" 
+                         id="edit_account_number" 
+                         name="account_number" 
+                         class="form-input">
+                </div>
+                
+                <div class="form-group">
+                  <label for="edit_iban" class="form-label">
+                    IBAN
+                  </label>
+                  <input type="text" 
+                         id="edit_iban" 
+                         name="iban" 
+                         class="form-input"
+                         placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX"
+                         maxlength="34">
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Facultatif - Format international (27 caractères maximum)
+                  </p>
+                </div>
+                
+                <div class="form-group">
+                  <label for="edit_bic" class="form-label">
+                    Code BIC/SWIFT
+                  </label>
+                  <input type="text" 
+                         id="edit_bic" 
+                         name="bic" 
+                         class="form-input"
+                         placeholder="XXXXXXXXXXX"
+                         maxlength="11">
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Facultatif - Code BIC/SWIFT (8 ou 11 caractères)
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer de la modale -->
+            <div class="flex items-center justify-end p-6 space-x-3 border-t border-gray-200 rounded-b dark:border-gray-700">
+              <button type="button" 
+                      class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
+                      data-modal-hide="edit-account-modal"
+                      aria-label="Annuler et fermer la fenêtre modale">
+                Annuler
+              </button>
+              <button type="submit" 
+                      class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      aria-label="Enregistrer les modifications">
+                <span class="flex items-center">
+                  <i class="fas fa-save mr-2" aria-hidden="true"></i>
+                  Mettre à jour
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Import -->
+    <div id="import-modal" role="dialog" aria-labelledby="import-modal-title" aria-modal="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-black/50">
+      <div class="relative p-4 w-full max-w-2xl h-full md:h-auto">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+          <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+            <h3 id="import-modal-title" class="text-xl font-semibold text-gray-900 dark:text-white">
+              <i class="fas fa-upload mr-2"></i>Importer des données de compte
+            </h3>
+            <button type="button" 
+                  id="close-import-modal"
+                  class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white"
+                  aria-label="Fermer la fenêtre modale">
+            <i class="fas fa-times w-5 h-5" aria-hidden="true"></i>
+            <span class="sr-only">Fermer la fenêtre modale</span>
+          </button>
+          </div>
+          
+          <form id="import-form" method="POST" enctype="multipart/form-data" class="p-6 space-y-6" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Sélection du compte -->
+            <div>
+              <label for="import-account" class="form-label">
+                Compte de destination<span class="text-red-600" aria-hidden="true">*</span>
+                <span class="sr-only">(obligatoire)</span>
+              </label>
+              <select id="import-account" name="account_id" required class="form-select" aria-required="true">
+                <option value="">Sélectionnez un compte...</option>
+                <!-- Options chargées dynamiquement -->
+              </select>
+            </div>
+            
+            <!-- Sélection du fichier -->
+            <div>
+              <label for="import-file" class="form-label">
+                Fichier à importer<span class="text-red-600" aria-hidden="true">*</span>
+                <span class="sr-only">(obligatoire)</span>
+              </label>
+              <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400 transition-colors">
+                <div class="space-y-1 text-center">
+                  <i class="fas fa-cloud-upload-alt text-gray-400 text-3xl mb-3"></i>
+                  <div class="flex text-sm text-gray-600">
+                    <label for="import-file" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                      <span>Télécharger un fichier</span>
+                      <input id="import-file" name="file" type="file" accept=".csv" required class="sr-only">
+                    </label>
+                    <p class="pl-1">ou glisser-déposer</p>
+                  </div>
+                  <p class="text-xs text-gray-500">CSV (Date;Réf;Débit;Crédit;Libellé;Solde), jusqu'à 10 Mo</p>
+                </div>
+              </div>
+              <!-- Affichage du fichier sélectionné -->
+              <div id="selected-file-info" class="hidden mt-2 p-2 bg-blue-50 rounded-md">
+                <p class="text-sm text-blue-700">
+                  <i class="fas fa-file mr-2"></i>
+                  <span id="selected-file-name"></span>
+                </p>
+              </div>
+            </div>
+            
+            <!-- Options d'import -->
+            <div>
+              <h4 class="form-label">Options d'import</h4>
+              <div class="space-y-2">
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="checkbox" id="update_existing" name="update_existing" value="1" class="form-checkbox">
+                    <label for="update_existing" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Mettre à jour les transactions existantes
+                    </label>
+                  </div>
+                </div>
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="checkbox" id="skip_duplicates" name="skip_duplicates" value="1" checked class="form-checkbox">
+                    <label for="skip_duplicates" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Ignorer les doublons
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer de la modale -->
+            <div class="flex items-center justify-end p-6 space-x-3 border-t border-gray-200 rounded-b dark:border-gray-700">
+              <button type="button" 
+                      id="cancel-import"
+                      class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
+                      aria-label="Annuler et fermer la fenêtre modale">
+                Annuler
+              </button>
+              <button type="submit" 
+                      class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      aria-label="Importer le fichier">
+                <span class="flex items-center">
+                  <i class="fas fa-upload mr-2" aria-hidden="true"></i>
+                  Importer
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Export -->
+    <div id="export-modal" role="dialog" aria-labelledby="export-modal-title" aria-modal="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-modal md:h-full bg-black/50">
+      <div class="relative p-4 w-full max-w-2xl h-full md:h-auto">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+          <div class="flex items-start justify-between p-4 border-b rounded-t dark:border-gray-700">
+            <h3 id="export-modal-title" class="text-xl font-semibold text-gray-900 dark:text-white">
+              <i class="fas fa-download mr-2"></i>Exporter des données de compte
+            </h3>
+            <button type="button" 
+                  id="close-export-modal"
+                  class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-700 dark:hover:text-white"
+                  aria-label="Fermer la fenêtre modale">
+            <i class="fas fa-times w-5 h-5" aria-hidden="true"></i>
+            <span class="sr-only">Fermer la fenêtre modale</span>
+          </button>
+          </div>
+          
+          <form id="export-form" method="POST" class="p-6 space-y-6" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Sélection du compte -->
+            <div>
+              <label for="export-account" class="form-label">
+                Compte à exporter
+              </label>
+              <select id="export-account" name="account_id" class="form-select">
+                <option value="">Tous les comptes</option>
+                <!-- Options chargées dynamiquement -->
+              </select>
+            </div>
+            
+            <!-- Période -->
+            <div>
+              <label class="form-label">Période</label>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label for="export-date-from" class="block text-xs text-gray-500 mb-1">Date de début</label>
+                  <input type="date" id="export-date-from" name="date_from" class="form-input">
+                </div>
+                <div>
+                  <label for="export-date-to" class="block text-xs text-gray-500 mb-1">Date de fin</label>
+                  <input type="date" id="export-date-to" name="date_to" class="form-input">
+                </div>
+              </div>
+            </div>
+            
+            <!-- Format -->
+            <div>
+              <label class="form-label">Format d'export</label>
+              <div class="space-y-2">
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="radio" id="format_csv" name="format" value="csv" checked class="form-radio">
+                    <label for="format_csv" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      CSV (Excel compatible)
+                    </label>
+                  </div>
+                </div>
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="radio" id="format_excel" name="format" value="excel" class="form-radio">
+                    <label for="format_excel" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Excel (.xlsx)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Type de données -->
+            <div>
+              <label class="form-label">Données à exporter</label>
+              <div class="space-y-2">
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="checkbox" id="include_transactions" name="include_transactions" value="1" checked class="form-checkbox">
+                    <label for="include_transactions" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Transactions
+                    </label>
+                  </div>
+                </div>
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="checkbox" id="include_account_details" name="include_account_details" value="1" checked class="form-checkbox">
+                    <label for="include_account_details" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Détails du compte
+                    </label>
+                  </div>
+                </div>
+                <div class="flex items-center">
+                  <div class="flex items-center h-5">
+                    <input type="checkbox" id="include_balance_history" name="include_balance_history" value="1" class="form-checkbox">
+                    <label for="include_balance_history" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Historique des soldes
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Footer de la modale -->
+            <div class="flex items-center justify-end p-6 space-x-3 border-t border-gray-200 rounded-b dark:border-gray-700">
+              <button type="button" 
+                      id="cancel-export"
+                      class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600"
+                      aria-label="Annuler et fermer la fenêtre modale">
+                Annuler
+              </button>
+              <button type="submit" 
+                      class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      aria-label="Exporter les données">
+                <span class="flex items-center">
+                  <i class="fas fa-download mr-2" aria-hidden="true"></i>
+                  Exporter
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Champ CSRF pour les requêtes AJAX -->
+    <div id="csrf-token" style="display: none;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% endblock %}

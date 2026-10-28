@@ -1,0 +1,269 @@
+/* 
+ * Styles pour les graphiques Chart.js
+ * Intégré avec le design existant Tailwind
+ */
+
+/* Container des graphiques */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    margin-bottom: 1.5rem;
+}
+
+/* Conteneur plus petit pour widgets */
+.chart-container.chart-widget {
+    height: 300px;
+    padding: 0.75rem;
+}
+
+/* Titre des graphiques */
+.chart-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+/* États de chargement */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    flex-direction: column;
+    color: #6B7280;
+}
+
+.chart-loading .spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid #E5E7EB;
+    border-top: 3px solid #3B82F6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* État d'erreur */
+.chart-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    flex-direction: column;
+    color: #EF4444;
+    text-align: center;
+    padding: 2rem;
+}
+
+.chart-error i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.7;
+}
+
+/* Cartes KPI Dashboard */
+.kpi-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+}
+
+.kpi-card .kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.kpi-card .kpi-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.kpi-card .kpi-icon {
+    font-size: 2.5rem;
+    opacity: 0.7;
+}
+
+/* Variantes couleurs KPI */
+.kpi-card.kpi-balance {
+    background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
+}
+
+.kpi-card.kpi-income {
+    background: linear-gradient(135deg, #10B981 0%, #047857 100%);
+}
+
+.kpi-card.kpi-expenses {
+    background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
+}
+
+.kpi-card.kpi-savings {
+    background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+}
+
+/* Grid responsive pour les graphiques */
+.charts-grid {
+    display: grid;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* 2 colonnes sur desktop */
+@media (min-width: 1024px) {
+    .charts-grid {
+        grid-template-columns: 2fr 1fr;
+    }
+    
+    .charts-grid.charts-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* 1 colonne sur mobile */
+@media (max-width: 1023px) {
+    .chart-container {
+        height: 300px;
+    }
+    
+    .kpi-card .kpi-value {
+        font-size: 1.5rem;
+    }
+    
+    .kpi-card .kpi-icon {
+        font-size: 2rem;
+    }
+    
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Filtres des graphiques */
+.chart-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.chart-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chart-filter-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    white-space: nowrap;
+}
+
+.chart-filter-group select,
+.chart-filter-group input {
+    padding: 0.5rem;
+    border: 1px solid #D1D5DB;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    min-width: 120px;
+}
+
+.chart-filter-group select:focus,
+.chart-filter-group input:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Bouton de rafraîchissement */
+.chart-refresh-btn {
+    background: #3B82F6;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.chart-refresh-btn:hover {
+    background: #2563EB;
+}
+
+.chart-refresh-btn:disabled {
+    background: #9CA3AF;
+    cursor: not-allowed;
+}
+
+/* Animations des graphiques */
+.chart-container canvas {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mode sombre */
+@media (prefers-color-scheme: dark) {
+    .chart-container {
+        background: #1F2937;
+        color: #F9FAFB;
+    }
+    
+    .chart-title {
+        color: #F9FAFB;
+    }
+    
+    .chart-filters {
+        background: #1F2937;
+    }
+    
+    .chart-filter-group label {
+        color: #F9FAFB;
+    }
+    
+    .chart-filter-group select,
+    .chart-filter-group input {
+        background: #374151;
+        border-color: #4B5563;
+        color: #F9FAFB;
+    }
+}

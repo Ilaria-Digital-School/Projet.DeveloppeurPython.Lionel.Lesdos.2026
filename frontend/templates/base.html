@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestion Budgétaire{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
+    
+    <!-- Font Awesome (version locale) -->
+    <link href="{{ url_for('static', filename='css/font-awesome/css/all.min.css') }}" rel="stylesheet">
+    
+    <!-- Styles Tailwind -->
+    <link href="{{ url_for('static', filename='css/tailwind.css') }}" rel="stylesheet">
+    
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/flatpickr.min.css') }}">
+    
+    <!-- Chart.js pour les graphiques -->
+    <script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+    
+    {% if request.endpoint and (request.endpoint.startswith('dashboard_') or 
+          request.endpoint in ['dashboard_bp.dashboard', 'transactions.list_transactions',
+          'accounts_bp.index', 'categories.list_categories', 'profile_bp.profile',
+          'reports.reports_page', 'recurring.recurring_page'] or
+          request.endpoint.startswith('admin.')) %}
+    <!-- Styles du menu (uniquement sur les pages avec menu) -->
+    <link href="{{ url_for('static', filename='css/menu/menu.css') }}" rel="stylesheet">
+    <!-- Styles graphiques (uniquement sur les pages avec menu) -->
+    <link href="{{ url_for('static', filename='css/charts.css') }}" rel="stylesheet">
+    {% endif %}
+    
+    {% block extra_css %}{% endblock %}
+</head>
+{% if request.endpoint == 'dashboard_bp.dashboard' %}
+<body>
+{% else %}
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900">
+{% endif %}
+    {% if request.endpoint and (request.endpoint.startswith('dashboard_') or 
+          request.endpoint in ['dashboard_bp.dashboard', 'transactions.list_transactions',
+          'accounts_bp.index', 'categories.list_categories', 'profile_bp.profile',
+          'reports.reports_page', 'recurring.recurring_page'] or
+          request.endpoint.startswith('admin.')) %}
+    <!-- Menu de navigation (uniquement sur les pages avec menu) -->
+    {% include 'menu.html' %}
+    {% endif %}
+
+    <!-- Contenu principal -->
+    <main class="container mx-auto px-4 py-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-4 p-4 rounded-md 
+                        {% if category == 'success' %}bg-green-100 text-green-800{% endif %}
+                        {% if category == 'error' %}bg-red-100 text-red-800{% endif %}
+                        {% if category == 'warning' %}bg-yellow-100 text-yellow-800{% endif %}
+                        {% if not category or category == 'message' %}bg-blue-100 text-blue-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Pied de page -->
+    <footer class="bg-white dark:bg-gray-800 mt-12 py-6">
+        <div class="container mx-auto px-4 text-center text-gray-600 dark:text-gray-300">
+            &copy; 2026 Gestion Budgétaire - Tous droits réservés
+        </div>
+    </footer>
+
+    <!-- moment.js désactivé temporairement pour éviter les erreurs -->
+
+    {% if request.endpoint and (request.endpoint in ['dashboard_bp.dashboard', 'transactions.list_transactions',
+          'accounts_bp.index', 'categories.list_categories', 'profile_bp.profile',
+          'reports.reports_page', 'recurring.recurring_page'] or
+          request.endpoint.startswith('admin.') or request.endpoint.startswith('settings.')) %}
+    <!-- Scripts du menu (uniquement sur les pages avec menu) -->
+    <script type="module" src="{{ url_for('static', filename='js/menu/menu.js') }}"></script>
+    {% endif %}
+
+    {% if current_user.is_authenticated %}
+    <!-- Notifications (polling + bell + toasts) -->
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    {% endif %}
+    
+    <!-- Flatpickr JS -->
+    <script src="{{ url_for('static', filename='js/flatpickr.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/flatpickr-fr.js') }}"></script>
+    
+    <!-- Utilitaires JS partagés -->
+    <script src="{{ url_for('static', filename='js/utils.js') }}?v=1"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

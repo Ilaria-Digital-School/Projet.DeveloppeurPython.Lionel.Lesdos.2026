@@ -1,0 +1,30 @@
+{# Template pour l'erreur 403 - Accès refusé #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Accès refusé{% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title = "Accès refusé" %}
+    {% set error_code = 403 %}
+    {% set error_icon = "fas fa-ban" %}
+    {% 
+        set error_message %}
+            {% trans %}Vous n'avez pas les autorisations nécessaires pour accéder à cette page.{% endtrans %}
+            <br>
+            {% if not current_user.is_authenticated %}
+                {% trans %}Veuillez vous connecter pour continuer.{% endtrans %}
+            {% else %}
+                {% trans %}Veuillez contacter un administrateur si vous pensez qu'il s'agit d'une erreur.{% endtrans %}
+            {% endif %}
+        {% endset 
+    %}
+    {{ super() }}
+    
+    {% if not current_user.is_authenticated %}
+    <div class="mt-4">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary">
+            <i class="fas fa-sign-in-alt"></i> {% trans %}Se connecter{% endtrans %}
+        </a>
+    </div>
+    {% endif %}
+{% endblock %}

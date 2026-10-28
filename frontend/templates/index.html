@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8" role="main">
+  <div class="welcome-container text-center">
+    <h1 class="text-4xl font-bold text-primary-600 mb-6">Bienvenue sur GestionBudget</h1>
+    <p class="text-xl text-gray-700 mb-10 max-w-2xl mx-auto">L'application simple et efficace pour gérer votre budget personnel</p>
+    
+    <div class="auth-buttons flex flex-col sm:flex-row justify-center gap-4">
+      <a href="{{ url_for('auth.login') }}" class="btn btn-primary">
+        <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+      </a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-secondary">
+        <i class="fas fa-user-plus mr-2"></i>Créer un compte
+      </a>
+    </div>
+
+    <div class="features mt-16 grid md:grid-cols-3 gap-8">
+      <div class="feature-card p-6 bg-white rounded-lg shadow-md">
+        <div class="feature-icon text-4xl text-primary-500 mb-4">
+          <i class="fas fa-chart-pie"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Suivi des dépenses</h3>
+        <p class="text-gray-600">Visualisez vos dépenses par catégories et identifiez vos postes de dépenses principaux.</p>
+      </div>
+
+      <div class="feature-card p-6 bg-white rounded-lg shadow-md">
+        <div class="feature-icon text-4xl text-primary-500 mb-4">
+          <i class="fas fa-bullseye"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Objectifs budgétaires</h3>
+        <p class="text-gray-600">Définissez et suivez vos objectifs d'épargne et de dépenses.</p>
+      </div>
+
+      <div class="feature-card p-6 bg-white rounded-lg shadow-md">
+        <div class="feature-icon text-4xl text-primary-500 mb-4">
+          <i class="fas fa-bell"></i>
+        </div>
+        <h3 class="text-xl font-semibold mb-2">Alertes personnalisées</h3>
+        <p class="text-gray-600">Recevez des notifications pour vos dépenses inhabituelles ou vos limites budgétaires.</p>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/index.js') }}"></script>
+{% endblock %}

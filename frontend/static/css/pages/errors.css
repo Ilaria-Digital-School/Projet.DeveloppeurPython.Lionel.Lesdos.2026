@@ -1,0 +1,44 @@
+/* Styles pour les pages d'erreur */
+.error-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    padding: 2rem;
+    text-align: center;
+}
+
+.error-content {
+    max-width: 600px;
+    width: 100%;
+    padding: 2rem;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.suggestions {
+    max-width: 500px;
+    margin: 1rem auto;
+    text-align: left;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 0.5rem;
+}
+
+.suggestions ul {
+    margin-top: 0.5rem;
+    padding-left: 1.5rem;
+}
+
+.suggestions li {
+    margin-bottom: 0.5rem;
+}
+
+.error-actions {
+    margin-top: 1.5rem;
+}
+
+.error-actions .btn {
+    margin: 0 0.5rem;
+}

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    <!-- Styles en ligne pour la compatibilité avec les clients email -->
+    <style>
+        /* Les styles en ligne sont maintenus pour la compatibilité avec les clients email */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+        .logo {
+            max-width: 150px;
+            height: auto;
+        }
+        .content {
+            padding: 20px 0;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #777;
+            text-align: center;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        @media only screen and (max-width: 600px) {
+            .button {
+                display: block;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 style="color: white; margin: 0; font-size: 1.5rem;">Gestion Budgétaire</h1>
+    </div>
+    
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <div class="footer">
+        <p>© {{ now.year }} Gestion Budgétaire. Tous droits réservés.</p>
+        <p>
+            <a href="{{ url_for('main.contact', _external=True) }}" style="color: #4CAF50; text-decoration: none;">Contact</a> | 
+            <a href="{{ url_for('main.privacy', _external=True) }}" style="color: #4CAF50; text-decoration: none;">Confidentialité</a>
+        </p>
+    </div>
+</body>
+</html>

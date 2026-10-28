@@ -1,0 +1,203 @@
+<!-- Barre de navigation principale -->
+<nav class="nav-container" aria-label="Navigation principale">
+  <div class="nav-menu">
+    <!-- Logo et navigation principale -->
+    <div class="flex items-center">
+      <a href="{{ url_for('dashboard_bp.dashboard') }}" class="flex-shrink-0 flex items-center text-primary-600 hover:text-primary-700">
+        <span class="text-xl font-bold">GestionBudget</span>
+      </a>
+      <div class="hidden sm:ml-6 sm:flex sm:space-x-2">
+        <a href="{{ url_for('dashboard_bp.dashboard') }}" 
+           class="nav-link {% if request.endpoint == 'dashboard_bp.dashboard' %}active{% endif %}">
+          <i class="fas fa-home mr-2"></i> Tableau de bord
+        </a>
+        <a href="{{ url_for('accounts_bp.index') }}" 
+           class="nav-link {% if request.endpoint == 'accounts_bp.index' %}active{% endif %}">
+          <i class="fas fa-wallet mr-2"></i> Comptes
+        </a>
+        <a href="{{ url_for('transactions.list_transactions') }}"
+           class="nav-link {% if request.endpoint == 'transactions.list_transactions' %}active{% endif %}">
+          <i class="fas fa-exchange-alt mr-2"></i> Transactions
+        </a>
+        <a href="{{ url_for('recurring.recurring_page') }}"
+           class="nav-link {% if request.endpoint and request.endpoint.startswith('recurring.') %}active{% endif %}">
+          <i class="fas fa-redo mr-2"></i> Récurrentes
+        </a>
+        <a href="{{ url_for('categories.list_categories') }}"
+           class="nav-link {% if request.endpoint == 'categories.list_categories' %}active{% endif %}">
+          <i class="fas fa-tags mr-2"></i> Catégories
+        </a>
+        <a href="{{ url_for('reports.reports_page') }}"
+           class="nav-link {% if request.endpoint and request.endpoint.startswith('reports.') %}active{% endif %}">
+          <i class="fas fa-chart-bar mr-2"></i> Rapports
+        </a>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        <div class="relative group">
+          <button class="nav-link {% if request.endpoint.startswith('admin.') %}active{% endif %} flex items-center" 
+                  type="button" onclick="toggleAdminDropdown()">
+            <i class="fas fa-cog mr-2"></i> Administration
+            <i class="fas fa-chevron-down ml-2 text-xs transition-transform group-hover:rotate-180"></i>
+          </button>
+          <div id="admin-dropdown" class="admin-dropdown">
+            <a href="{{ url_for('admin.dashboard') }}" 
+               class="admin-dropdown-item {% if request.endpoint == 'admin.dashboard' %}bg-blue-50 text-blue-700{% endif %}">
+              <i class="fas fa-chart-line mr-2"></i> Dashboard
+            </a>
+            <a href="{{ url_for('admin.users_management') }}" 
+               class="admin-dropdown-item {% if request.endpoint == 'admin.users_management' %}bg-blue-50 text-blue-700{% endif %}">
+              <i class="fas fa-users mr-2"></i> Utilisateurs
+            </a>
+            <a href="{{ url_for('admin.monitoring') }}" 
+               class="admin-dropdown-item {% if request.endpoint == 'admin.monitoring' %}bg-blue-50 text-blue-700{% endif %}">
+              <i class="fas fa-chart-bar mr-2"></i> Monitoring
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Contrôles utilisateur -->
+    <div class="flex items-center space-x-4">
+      <!-- Bouton de bascule du thème -->
+      <button id="dark-mode-toggle" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" 
+              aria-label="Basculer le thème">
+        <i class="fas fa-moon dark:hidden"></i>
+        <i class="fas fa-sun hidden dark:block"></i>
+      </button>
+      
+      <!-- Notifications -->
+      <div class="relative" id="notification-bell-container">
+        <button type="button" id="notification-bell" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 relative"
+                aria-label="Notifications" aria-expanded="false" aria-haspopup="true">
+          <i class="fas fa-bell"></i>
+          <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
+        </button>
+        <!-- Dropdown notifications -->
+        <div id="notification-dropdown" class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 z-50 hidden" role="menu">
+          <div class="flex items-center justify-between px-4 py-2 border-b dark:border-gray-700">
+            <span class="font-semibold text-sm text-gray-700 dark:text-gray-200">Notifications</span>
+            <button id="mark-all-read-btn" class="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">Tout marquer comme lu</button>
+          </div>
+          <div id="notification-list" class="max-h-64 overflow-y-auto">
+            <div class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">Aucune notification</div>
+          </div>
+          <div class="border-t dark:border-gray-700 px-4 py-2 text-center">
+            <a href="#" class="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400" id="see-all-notifications">Voir toutes les notifications</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menu utilisateur -->
+      <div class="relative">
+        <button type="button" id="user-menu-button" 
+                class="flex items-center text-sm rounded-full focus:outline-none" 
+                aria-expanded="false" 
+                aria-haspopup="true">
+          <span class="sr-only">Ouvrir le menu utilisateur</span>
+          <div class="h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-primary-700 dark:text-primary-200">
+            <i class="fas fa-user"></i>
+          </div>
+        </button>
+        
+        <!-- Menu déroulant du profil -->
+        <div id="user-menu" 
+             class="user-menu" 
+             role="menu" 
+             aria-orientation="vertical" 
+             aria-labelledby="user-menu-button" 
+             tabindex="-1">
+          <a href="{{ url_for('dashboard_bp.profile') }}" 
+             class="flex items-center text-sm text-white hover:text-gray-200 focus:outline-none transition duration-150 ease-in-out">
+            <span class="sr-only">Profil</span>
+            <i class="fas fa-user-circle text-xl"></i>
+          </a>
+          {% if current_user.is_authenticated and current_user.is_admin %}
+          <a href="{{ url_for('admin.dashboard') }}" 
+             class="ml-4 text-sm text-white hover:text-gray-200 focus:outline-none transition duration-150 ease-in-out">
+            <span class="sr-only">Administration</span>
+            <i class="fas fa-cog text-xl"></i>
+          </a>
+          {% endif %}
+          <a href="{{ url_for('auth.logout') }}" 
+             class="ml-4 text-sm text-white hover:text-gray-200 focus:outline-none transition duration-150 ease-in-out">
+            <i class="fas fa-sign-out-alt"></i>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Bouton du menu mobile -->
+      <button type="button" 
+              id="mobile-menu-button" 
+              class="mobile-menu-button" 
+              aria-expanded="false" 
+              aria-controls="mobile-menu">
+        <span class="sr-only">Ouvrir le menu principal</span>
+        <i id="mobile-menu-icon" class="fas fa-bars"></i>
+        <i id="mobile-close-icon" class="fas fa-times hidden opacity-0"></i>
+      </button>
+    </div>
+  </div>
+  
+  <!-- Menu mobile -->
+  <div id="mobile-menu" class="mobile-menu" aria-labelledby="mobile-menu-button">
+    <a href="{{ url_for('dashboard_bp.dashboard') }}" 
+       class="nav-link {% if request.endpoint == 'dashboard_bp.dashboard' %}active{% endif %}">
+      <i class="fas fa-home mr-2"></i> Tableau de bord
+    </a>
+    <a href="{{ url_for('accounts_bp.index') }}" 
+       class="nav-link {% if request.endpoint == 'accounts_bp.index' %}active{% endif %}">
+      <i class="fas fa-wallet mr-2"></i> Comptes
+    </a>
+    <a href="{{ url_for('transactions.list_transactions') }}"
+       class="nav-link {% if request.endpoint == 'transactions.list_transactions' %}active{% endif %}">
+      <i class="fas fa-exchange-alt mr-2"></i> Transactions
+    </a>
+    <a href="{{ url_for('recurring.recurring_page') }}"
+       class="nav-link {% if request.endpoint and request.endpoint.startswith('recurring.') %}active{% endif %}">
+      <i class="fas fa-redo mr-2"></i> Récurrentes
+    </a>
+    <a href="{{ url_for('categories.list_categories') }}"
+       class="nav-link {% if request.endpoint == 'categories.list_categories' %}active{% endif %}">
+      <i class="fas fa-tags mr-2"></i> Catégories
+    </a>
+    <a href="{{ url_for('reports.reports_page') }}"
+       class="nav-link {% if request.endpoint and request.endpoint.startswith('reports.') %}active{% endif %}">
+      <i class="fas fa-chart-bar mr-2"></i> Rapports
+    </a>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <a href="{{ url_for('admin.dashboard') }}"
+       class="nav-link {% if request.endpoint.startswith('admin.') %}active{% endif %}">
+      <i class="fas fa-cog mr-2"></i> Administration
+    </a>
+    {% endif %}
+    <a href="{{ url_for('dashboard_bp.profile') }}" 
+       class="nav-link {% if request.endpoint == 'profile_bp.profile' %}active{% endif %}">
+      <i class="fas fa-user mr-2"></i> Mon Profil
+    </a>
+    <a href="{{ url_for('auth.logout') }}" 
+       class="nav-link text-red-600 hover:bg-red-50">
+      <i class="fas fa-sign-out-alt mr-2"></i> Déconnexion
+    </a>
+  </div>
+</nav>
+
+<script nonce="{{ csp_nonce }}">
+// Fonction pour gérer le dropdown admin
+function toggleAdminDropdown() {
+  const dropdown = document.getElementById('admin-dropdown');
+  if (dropdown) {
+    dropdown.classList.toggle('show');
+  }
+}
+
+// Fermer le dropdown admin en cliquant ailleurs
+document.addEventListener('click', function(event) {
+  const dropdown = document.getElementById('admin-dropdown');
+  const adminButton = event.target.closest('[onclick="toggleAdminDropdown()"]');
+  
+  if (dropdown && !adminButton && !dropdown.contains(event.target)) {
+    dropdown.classList.remove('show');
+  }
+});
+</script>

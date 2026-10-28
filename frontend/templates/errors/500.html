@@ -1,0 +1,18 @@
+{# Template pour l'erreur 500 - Erreur serveur #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Erreur serveur{% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title = "Oups !" %}
+    {% set error_code = 500 %}
+    {% set error_icon = "fas fa-server" %}
+    {% 
+        set error_message %}
+            {% trans %}Une erreur interne du serveur s'est produite.{% endtrans %}
+            <br>
+            {% trans %}Notre équipe technique a été notifiée et travaille à résoudre le problème.{% endtrans %}
+        {% endset 
+    %}
+    {{ super() }}
+{% endblock %}

@@ -1,0 +1,95 @@
+/* Styles de base pour l'interface d'administration */
+
+/* Réinitialisation des marges et paddings */
+body {
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+/* En-tête de l'administration */
+.admin-header {
+    background-color: #343a40;
+    color: white;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+/* Navigation de l'administration */
+.admin-nav {
+    background-color: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+    min-height: calc(100vh - 56px);
+    padding: 1rem 0;
+}
+
+.admin-nav .nav-link {
+    color: #495057;
+    padding: 0.5rem 1rem;
+    border-left: 3px solid transparent;
+}
+
+.admin-nav .nav-link:hover,
+.admin-nav .nav-link.active {
+    background-color: #e9ecef;
+    border-left: 3px solid #007bff;
+    color: #007bff;
+}
+
+/* Contenu principal */
+.admin-main {
+    padding: 1rem;
+}
+
+/* Cartes de statistiques */
+.stat-card {
+    border-radius: 0.5rem;
+    transition: transform 0.2s;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+/* Tableaux */
+.table-responsive {
+    margin-top: 1.5rem;
+}
+
+/* Formulaires */
+.admin-form {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Boutons d'action */
+.btn-action {
+    margin: 0 0.25rem;
+}
+
+/* Alertes personnalisées */
+.alert-admin {
+    border-left: 4px solid #007bff;
+    border-radius: 0.25rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .admin-nav {
+        min-height: auto;
+        margin-bottom: 1rem;
+    }
+    
+    .admin-main {
+        padding: 0.5rem;
+    }
+}

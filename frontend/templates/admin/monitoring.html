@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Monitoring Technique{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<!-- Chart.js pour les graphiques -->
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-common.css') }}">
+<style>
+    /* Styles spécifiques au monitoring - les styles communs sont dans admin-common.css */
+    
+    .log-error { color: #ef4444; }
+    .log-warning { color: #f59e0b; }
+    .log-info { color: #3b82f6; }
+    .log-debug { color: #6b7280; }
+    
+    /* Classes alert-* maintenant dans admin-common.css */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+  <!-- En-tête monitoring -->
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        <i class="fas fa-server mr-2 text-indigo-600"></i> Monitoring Technique
+      </h1>
+      <p class="text-gray-600">Surveillance complète du système et des performances</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="exportMetrics()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors">
+        <i class="fas fa-download mr-2"></i> Exporter
+      </button>
+      <button onclick="refreshAllMetrics()" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition-all duration-200">
+        <i class="fas fa-sync-alt mr-2"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Métriques système détaillées -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- CPU détaillé -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-microchip mr-2 text-purple-600"></i> Processeur (CPU)
+      </h3>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Utilisation globale</span>
+          <span class="metric-value">{{ system_metrics.cpu.percent|default(0)|round(1) }}%</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill bg-purple-600" style="width: {{ system_metrics.cpu.percent|default(0) }}%"></div>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Nombre de cœurs</span>
+          <span class="font-semibold">{{ system_metrics.cpu.count|default(0) }}</span>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Load Average (1m)</span>
+          <span class="font-semibold">{{ system_metrics.cpu.load_average[0]|default(0)|round(2) }}</span>
+        </div>
+      </div>
+      <!-- CPU par cœur -->
+      {% if system_metrics.cpu.per_core %}
+      <div class="mt-3">
+        <span class="text-xs text-gray-500">Utilisation par cœur:</span>
+        <div class="grid grid-cols-4 gap-1 mt-1">
+          {% for core_usage in system_metrics.cpu.per_core %}
+          <div class="text-center">
+            <div class="text-xs text-gray-600">C{{ loop.index0 }}</div>
+            <div class="text-xs font-semibold">{{ core_usage|round(1) }}%</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Mémoire détaillée -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-memory mr-2 text-pink-600"></i> Mémoire RAM
+      </h3>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Utilisation</span>
+          <span class="metric-value">{{ system_metrics.memory.percent|default(0)|round(1) }}%</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill bg-pink-600" style="width: {{ system_metrics.memory.percent|default(0) }}%"></div>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Total</span>
+          <span class="font-semibold">{{ (system_metrics.memory.total|default(0) / 1024 / 1024 / 1024)|round(1) }} GB</span>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Disponible</span>
+          <span class="font-semibold">{{ (system_metrics.memory.available|default(0) / 1024 / 1024 / 1024)|round(1) }} GB</span>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Swap utilisé</span>
+          <span class="font-semibold">{{ system_metrics.swap.percent|default(0)|round(1) }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disque détaillé -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-hdd mr-2 text-cyan-600"></i> Stockage
+      </h3>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Utilisation</span>
+          <span class="metric-value">{{ system_metrics.disk.percent|default(0)|round(1) }}%</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill bg-cyan-600" style="width: {{ system_metrics.disk.percent|default(0) }}%"></div>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Total</span>
+          <span class="font-semibold">{{ (system_metrics.disk.total|default(0) / 1024 / 1024 / 1024)|round(1) }} GB</span>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">Libre</span>
+          <span class="font-semibold">{{ (system_metrics.disk.free|default(0) / 1024 / 1024 / 1024)|round(1) }} GB</span>
+        </div>
+      </div>
+      <div class="metric-detail">
+        <div class="flex justify-between items-center">
+          <span class="metric-label">I/O Read</span>
+          <span class="font-semibold">{{ (system_metrics.disk.read_bytes|default(0) / 1024 / 1024)|round(1) }} MB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Base de données et réseau -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Performance base de données -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-database mr-2 text-indigo-600"></i> Base de Données
+      </h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="metric-detail">
+          <div class="metric-label">Taille DB</div>
+          <div class="font-semibold text-lg">{{ (database_metrics.size|default(0) / 1024 / 1024)|round(2) }} MB</div>
+        </div>
+        <div class="metric-detail">
+          <div class="metric-label">Total lignes</div>
+          <div class="font-semibold text-lg">{{ "{:,}".format(database_metrics.total_rows|default(0)) }}</div>
+        </div>
+        <div class="metric-detail">
+          <div class="metric-label">Index</div>
+          <div class="font-semibold text-lg">{{ database_metrics.index_count|default(0) }}</div>
+        </div>
+        <div class="metric-detail">
+          <div class="metric-label">Pool connexions</div>
+          <div class="font-semibold text-lg">{{ database_metrics.pool.checked_out|default(0) }}/{{ database_metrics.pool.size|default(0) }}</div>
+        </div>
+      </div>
+      
+      <!-- Tables les plus volumineuses -->
+      <div class="mt-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">Tables principales:</div>
+        {% for table, count in database_metrics.tables.items() %}
+        <div class="flex justify-between text-sm py-1">
+          <span class="text-gray-600">{{ table }}</span>
+          <span class="font-semibold">{{ "{:,}".format(count) }} lignes</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Métriques API -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-network-wired mr-2 text-green-600"></i> Performances API
+      </h3>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <div class="metric-detail">
+          <div class="metric-label">Requêtes/min</div>
+          <div class="font-semibold text-lg">{{ api_metrics.requests_per_minute|default(0) }}</div>
+        </div>
+        <div class="metric-detail">
+          <div class="metric-label">Temps réponse moy.</div>
+          <div class="font-semibold text-lg">{{ api_metrics.average_response_time|default(0) }}ms</div>
+        </div>
+      </div>
+
+      <!-- Graphique des codes de statut -->
+      <div class="mt-4">
+        <div class="text-sm font-medium text-gray-700 mb-2">Codes de réponse:</div>
+        <div class="mt-2" style="height: 140px; position: relative;">
+          <canvas id="statusCodesChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs et alertes -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Logs système -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <div class="flex justify-content-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+          <i class="fas fa-file-alt mr-2 text-yellow-600"></i> Logs Système
+        </h3>
+        <div class="flex items-center gap-2">
+          <select id="logLevel" onchange="filterLogs()" class="text-sm border rounded px-2 py-1">
+            <option value="">📄 Logs bruts (non filtrés)</option>
+            <option value="ERROR">🔴 Erreurs</option>
+            <option value="WARNING">🟡 Avertissements+</option>
+            <option value="INFO">🔵 Info+</option>
+            <option value="DEBUG">🔍 Debug (parsés)</option>
+          </select>
+          <span id="filterStatus" class="text-xs text-gray-500"></span>
+        </div>
+      </div>
+      
+      <div class="overflow-y-auto" style="max-height: 400px;">
+        {% for log in system_logs[:20] %}
+        <div class="log-entry log-{{ log.level|lower }}">
+          <span class="text-xs opacity-70">{{ log.timestamp }}</span>
+          <span class="font-bold">[{{ log.level }}]</span>
+          {{ log.message[:150] }}{% if log.message|length > 150 %}...{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      
+      <div class="mt-4 text-center">
+        <button onclick="downloadLogs()" class="text-sm bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded">
+          <i class="fas fa-download mr-1"></i> Télécharger tous les logs
+        </button>
+      </div>
+    </div>
+
+    <!-- Alertes système -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <i class="fas fa-exclamation-circle mr-2 text-red-600"></i> Alertes Actives
+      </h3>
+      
+      {% if alerts %}
+        {% for alert in alerts %}
+        <div class="alert-item alert-{{ alert.type }}">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="font-semibold text-sm">{{ alert.message }}</div>
+              <div class="text-xs text-gray-600 mt-1">{{ alert.category|title }} - {{ alert.timestamp }}</div>
+            </div>
+            <div class="text-lg font-bold">{{ alert.value|round(1) }}%</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-8">
+          <i class="fas fa-check-circle text-green-400 text-4xl mb-2"></i>
+          <p class="text-gray-600">Aucune alerte active</p>
+        </div>
+      {% endif %}
+      
+      <div class="mt-4">
+        <button onclick="configureAlerts()" class="w-full text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded">
+          <i class="fas fa-cog mr-1"></i> Configurer les seuils d'alerte
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Configuration du graphique des codes de statut
+document.addEventListener('DOMContentLoaded', function() {
+    const statusCtx = document.getElementById('statusCodesChart');
+    if (statusCtx) {
+        new Chart(statusCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['2xx', '3xx', '4xx', '5xx'],
+                datasets: [{
+                    label: 'Codes HTTP',
+                    data: [
+                        {{ api_metrics.status_codes['2xx']|default(0) }},
+                        {{ api_metrics.status_codes['3xx']|default(0) }},
+                        {{ api_metrics.status_codes['4xx']|default(0) }},
+                        {{ api_metrics.status_codes['5xx']|default(0) }}
+                    ],
+                    backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            maxTicksLimit: 4,
+                            font: { size: 10 }
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: { size: 10 }
+                        }
+                    }
+                },
+                elements: {
+                    bar: {
+                        borderRadius: 2
+                    }
+                }
+            }
+        });
+    }
+    
+    // Actualisation automatique toutes les 10 secondes
+    setInterval(refreshAllMetrics, 10000);
+});
+
+function refreshAllMetrics() {
+    fetch('{{ url_for("api_v1.v1_admin_system_metrics") }}')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Métriques système actualisées');
+            // Recharger la page pour afficher les nouvelles données
+            location.reload();
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+
+function filterLogs() {
+    const levelSelect = document.getElementById('logLevel');
+    const level = levelSelect.value;
+    const logContainer = document.querySelector('.overflow-y-auto');
+    const filterStatus = document.getElementById('filterStatus');
+    
+    // Mise à jour du statut du filtre
+    updateFilterStatus(level, filterStatus, 'loading');
+    
+    // Afficher un indicateur de chargement
+    logContainer.innerHTML = '<div class="log-entry text-center">🔄 Chargement des logs...</div>';
+    
+    // Construire l'URL avec ou sans paramètre level
+    const url = level 
+        ? `{{ url_for("api_v1.v1_admin_system_logs") }}?level=${level}&limit=100`
+        : `{{ url_for("api_v1.v1_admin_system_logs") }}?limit=100`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Logs filtrés:', data);
+            
+            // Vider le conteneur
+            logContainer.innerHTML = '';
+            
+            // Vérifier si on a des logs (l'API retourne {logs: [...]}
+            const logs = data.logs || [];
+            if (!logs || logs.length === 0) {
+                const message = level 
+                    ? `Aucun log de niveau "${level}" trouvé`
+                    : 'Aucun log trouvé';
+                logContainer.innerHTML = `<div class="log-entry text-center text-gray-500">${message}</div>`;
+                updateFilterStatus(level, filterStatus, 'empty');
+                return;
+            }
+            
+            // Afficher les logs avec des couleurs selon le niveau
+            logs.forEach(log => {
+                const logDiv = document.createElement('div');
+                const logLevel = log.level ? log.level.toUpperCase() : 'INFO';
+                
+                // Classes CSS selon le niveau
+                let levelClass = 'log-info';
+                let levelIcon = '🔵';
+                if (logLevel === 'ERROR' || logLevel === 'CRITICAL') {
+                    levelClass = 'log-error';
+                    levelIcon = '🔴';
+                } else if (logLevel === 'WARNING') {
+                    levelClass = 'log-warning';  
+                    levelIcon = '🟡';
+                } else if (logLevel === 'DEBUG') {
+                    levelClass = 'log-debug';
+                    levelIcon = '🔍';
+                }
+                
+                logDiv.className = `log-entry ${levelClass}`;
+                
+                // Format du log avec timestamp et niveau
+                const timestamp = log.timestamp || 'N/A';
+                const message = log.message || 'Message vide';
+                
+                logDiv.innerHTML = `
+                    <span class="text-gray-400">${timestamp}</span> 
+                    <span class="font-bold">${levelIcon} [${logLevel}]</span> 
+                    <span class="text-gray-700">${message}</span>
+                `;
+                
+                logContainer.appendChild(logDiv);
+            });
+            
+            // Mise à jour du statut avec le nombre de logs
+            updateFilterStatus(level, filterStatus, 'success', logs.length);
+        })
+        .catch(error => {
+            console.error('Erreur lors du filtrage des logs:', error);
+            logContainer.innerHTML = `
+                <div class="log-entry text-red-400">
+                    ❌ Erreur lors du chargement des logs: ${error.message}
+                    <br><small>Vérifiez votre connexion ou réessayez plus tard</small>
+                </div>
+            `;
+            updateFilterStatus(level, filterStatus, 'error');
+        });
+}
+
+function updateFilterStatus(level, statusElement, state, count = 0) {
+    let statusText = '';
+    
+    switch(state) {
+        case 'loading':
+            statusText = '⏳ Chargement...';
+            break;
+        case 'success':
+            if (level) {
+                const levelNames = {
+                    'ERROR': 'erreurs',
+                    'WARNING': 'avertissements+', 
+                    'INFO': 'info+',
+                    'DEBUG': 'logs parsés'
+                };
+                statusText = `✅ ${count} ${levelNames[level] || level.toLowerCase()}`;
+            } else {
+                statusText = `✅ ${count} logs bruts`;
+            }
+            break;
+        case 'empty':
+            statusText = level ? `⚠️ Aucun ${level.toLowerCase()}` : '⚠️ Aucun log';
+            break;
+        case 'error':
+            statusText = '❌ Erreur de chargement';
+            break;
+    }
+    
+    statusElement.textContent = statusText;
+}
+
+function downloadLogs() {
+    window.location.href = '{{ url_for("api_v1.v1_admin_system_logs") }}?limit=10000';
+}
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    // Restaurer la sélection du filtre depuis localStorage
+    const savedLevel = localStorage.getItem('admin_log_filter');
+    if (savedLevel) {
+        document.getElementById('logLevel').value = savedLevel;
+    }
+    
+    // Charger les logs avec le filtre restauré
+    filterLogs();
+    
+    // Sauvegarder la sélection lors du changement
+    document.getElementById('logLevel').addEventListener('change', function() {
+        localStorage.setItem('admin_log_filter', this.value);
+    });
+});
+
+function exportMetrics() {
+    const metrics = {
+        system: {{ system_metrics|tojson }},
+        database: {{ database_metrics|tojson }},
+        api: {{ api_metrics|tojson }}
+    };
+    
+    const blob = new Blob([JSON.stringify(metrics, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `monitoring_${new Date().toISOString()}.json`;
+    a.click();
+}
+
+function configureAlerts() {
+    alert('Configuration des seuils d\'alerte - À implémenter');
+}
+</script>
+{% endblock %}

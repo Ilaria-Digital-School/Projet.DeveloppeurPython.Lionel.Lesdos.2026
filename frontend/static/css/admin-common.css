@@ -1,0 +1,121 @@
+/**
+ * Styles CSS communs pour l'administration
+ * Unifie les classes utilisées dans dashboard.html et monitoring.html
+ */
+
+/* ==================== INDICATEURS DE SANTÉ ==================== */
+.health-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    animation: pulse 2s infinite;
+}
+
+.health-healthy { background-color: #10b981; }
+.health-warning { background-color: #f59e0b; }
+.health-critical { background-color: #ef4444; }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* ==================== BARRES DE PROGRESSION UNIFIÉES ==================== */
+.metric-progress-container {
+    height: 8px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.metric-progress-bar {
+    height: 100%;
+    background: white;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* Version pour fond sombre */
+.metric-progress-container.dark {
+    background: #e5e7eb;
+}
+
+.metric-progress-bar.dark {
+    background: #3b82f6;
+}
+
+/* ==================== DÉTAILS DE MÉTRIQUES ==================== */
+.metric-detail {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.metric-label {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.metric-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111827;
+}
+
+/* ==================== LOGS ET CONSOLE ==================== */
+.log-entry {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 8px;
+    background: #1f2937;
+    color: #f9fafb;
+    border-radius: 4px;
+    margin-bottom: 4px;
+}
+
+.log-level-error { border-left: 4px solid #ef4444; }
+.log-level-warning { border-left: 4px solid #f59e0b; }
+.log-level-info { border-left: 4px solid #3b82f6; }
+.log-level-debug { border-left: 4px solid #6b7280; }
+
+/* ==================== ALERTES ADMIN ==================== */
+.alert-critical {
+    background: #fef2f2;
+    border-left: 4px solid #ef4444;
+    color: #991b1b;
+}
+
+.alert-warning {
+    background: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    color: #92400e;
+}
+
+.alert-info {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    color: #1e40af;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+    .metric-detail {
+        padding: 8px;
+        margin-bottom: 6px;
+    }
+    
+    .metric-value {
+        font-size: 16px;
+    }
+    
+    .health-indicator {
+        width: 10px;
+        height: 10px;
+    }
+}

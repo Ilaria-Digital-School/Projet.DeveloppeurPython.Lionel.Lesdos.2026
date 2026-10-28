@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Catégories - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+  <!-- Token CSRF pour les requêtes AJAX -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Font Awesome pour les icônes -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome/css/all.min.css') }}">
+
+  <!-- Flatpickr pour les sélecteurs de date -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flatpickr.min.css') }}">
+  
+  <!-- Feuille de style spécifique aux catégories -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/categories.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+  <!-- Flatpickr -->
+  <script src="{{ url_for('static', filename='js/flatpickr.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flatpickr-fr.js') }}"></script>
+  
+  <!-- Scripts spécifiques à la page des catégories -->
+  <script src="{{ url_for('static', filename='js/pages/categories.js') }}?v=3"></script>
+  <script src="{{ url_for('static', filename='js/flatpickr-config.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+  
+  <div class="container mx-auto px-4 py-6">
+    <!-- En-tête -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">
+        Catégories
+        <span class="sr-only">- Gestion de budget personnel</span>
+      </h1>
+      <p class="text-gray-600">Gérez vos catégories de dépenses et de revenus</p>
+    </div>
+    
+    <!-- Bouton d'ajout -->
+    <div class="mb-6">
+      <button id="add-category-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        <i class="fas fa-plus mr-2"></i> Ajouter une catégorie
+      </button>
+    </div>
+    
+    <!-- Conteneur des alertes -->
+    <div id="alert-container"></div>
+    
+    <!-- Tableau des catégories -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <table id="categories-table" class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Nom
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Type
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Transactions
+            </th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider" style="text-align: right !important; padding-right: 2rem !important;">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for category in categories %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="category-icon-container" {% if category.color %}style="background-color: {{ category.color }};"{% endif %}>
+                  <div class="category-icon">
+                    <i class="fas fa-{{ category.icon if category.icon else 'tag' }}"></i>
+                  </div>
+                </div>
+                <div class="ml-4">
+                  <div class="text-sm font-medium text-gray-900">{{ category.name }}</div>
+                  {% if category.description %}
+                  <div class="text-sm text-gray-500">{{ category.description }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              {% if category.name and 'virement' in category.name.lower() %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                  Virement interne
+                </span>
+              {% elif category.is_expense == False %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                  Revenu
+                </span>
+              {% else %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                  Dépense
+                </span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ category_stats.get(category.id, 0) }} transactions
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button type="button" class="text-blue-600 hover:text-blue-900 mr-4 edit-category" data-id="{{ category.id }}">
+                  <i class="fas fa-edit"></i> Modifier
+                </button>
+                <button type="button" class="text-red-600 hover:text-red-900 delete-category" data-id="{{ category.id }}">
+                  <i class="fas fa-trash"></i> Supprimer
+                </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <style>
+      /* Styles pour la modal */
+      #category-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+      }
+      
+      #category-modal.show {
+        display: flex;
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      .modal-content {
+        background-color: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transform: translateY(-20px);
+        transition: transform 0.3s ease;
+      }
+      
+      #category-modal.show .modal-content {
+        transform: translateY(0);
+      }
+      
+      .modal-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #E5E7EB;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      
+      .modal-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1F2937;
+      }
+      
+      .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+      }
+      
+      .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #E5E7EB;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+      
+      .close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #6B7280;
+        cursor: pointer;
+        padding: 0.25rem;
+        line-height: 1;
+        transition: color 0.2s ease;
+      }
+      
+      .close:hover {
+        color: #111827;
+      }
+      
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        line-height: 1.25rem;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+      }
+      
+      .btn-primary {
+        background-color: #3b82f6;
+        color: white;
+        border: 1px solid #3b82f6;
+      }
+      
+      .btn-primary:hover {
+        background-color: #2563eb;
+        border-color: #2563eb;
+      }
+      
+      .btn-secondary {
+        background-color: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        margin-right: 0.5rem;
+      }
+      
+      .btn-secondary:hover {
+        background-color: #e5e7eb;
+      }
+      
+      .form-control {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #374151;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      }
+      
+      .form-control:focus {
+        border-color: #3b82f6;
+        outline: 0;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+      }
+      
+      .mb-4 {
+        margin-bottom: 1rem;
+      }
+    </style>
+    
+    <!-- Modal pour ajouter/modifier une catégorie -->
+    <div id="category-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-title" class="modal-title">Ajouter une catégorie</h3>
+          <button type="button" class="close close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="category-form">
+            <input type="hidden" id="category-id" name="id">
+            
+            <div class="mb-4">
+              <label for="category-name" class="block text-sm font-medium text-gray-700 mb-1">Nom de la catégorie</label>
+              <input type="text" id="category-name" name="name" class="form-control" required>
+            </div>
+            
+            <div class="mb-4">
+              <label for="category-type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select id="category-type" name="type" class="form-control" required>
+                <option value="expense">Dépense</option>
+                <option value="income">Revenu</option>
+                <option value="transfer">Virement interne</option>
+              </select>
+            </div>
+            
+            <div class="mb-4">
+              <label for="category-color" class="block text-sm font-medium text-gray-700 mb-1">Couleur</label>
+              <input type="color" id="category-color" name="color" value="#4CAF50" class="w-16 h-10 rounded border border-gray-300">
+            </div>
+            
+            <div class="mb-4">
+              <label for="category-icon" class="block text-sm font-medium text-gray-700 mb-1">Icône</label>
+              <select id="category-icon" name="icon" class="form-control" required>
+                <option value="shopping-cart">🛒 Courses</option>
+                <option value="utensils">🍽️ Restaurant</option>
+                <option value="home">🏠 Logement</option>
+                <option value="car">🚗 Transport</option>
+                <option value="heart">❤️ Santé</option>
+                <option value="tshirt">👕 Vêtements</option>
+                <option value="film">🎬 Loisirs</option>
+                <option value="graduation-cap">🎓 Éducation</option>
+                <option value="gift">🎁 Cadeaux</option>
+                <option value="umbrella-beach">🏖️ Vacances</option>
+                <option value="money-bill-wave">💰 Revenus</option>
+                <option value="piggy-bank">🐷 Épargne</option>
+                <option value="credit-card">💳 Carte de crédit</option>
+                <option value="wallet">👛 Portefeuille</option>
+                <option value="exchange-alt">🔄 Virement</option>
+                <option value="tag" selected>🏷️ Autre</option>
+              </select>
+            </div>
+            
+            <div class="mb-4 p-3 rounded bg-gray-50">
+              <p class="text-sm text-gray-600 mb-2">Aperçu :</p>
+              <div id="category-preview" class="category-preview">
+                <i class="fas fa-tag mr-2"></i>
+                <span>Nouvelle catégorie</span>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary close-modal">Annuler</button>
+          <button type="submit" form="category-form" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+    
+
+  </div>
+{% endblock %}

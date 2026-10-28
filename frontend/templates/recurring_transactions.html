@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions récurrentes - Gestion de Budget{% endblock %}
+
+{% block extra_css %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome/css/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/flatpickr.min.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{{ url_for('static', filename='js/flatpickr.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/flatpickr-fr.js') }}"></script>
+  <script nonce="{{ csp_nonce }}">
+    document.querySelectorAll('#recurring-modal .datepicker').forEach(function(el) {
+      flatpickr(el, { dateFormat: 'Y-m-d', locale: 'fr', allowInput: true });
+    });
+  </script>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+  <!-- En-tête -->
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Transactions récurrentes</h1>
+      <p class="text-gray-600">Automatisez vos transactions régulières</p>
+    </div>
+    <a href="{{ url_for('transactions.list_transactions') }}" class="text-blue-600 hover:text-blue-800 text-sm">
+      <i class="fas fa-arrow-left mr-1"></i> Retour aux transactions
+    </a>
+  </div>
+
+  <!-- Bouton d'ajout -->
+  <div class="mb-6">
+    <button id="add-recurring-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+      <i class="fas fa-plus mr-2"></i> Nouvelle récurrence
+    </button>
+  </div>
+
+  <!-- Conteneur des alertes -->
+  <div id="alert-container"></div>
+
+  <!-- Liste des récurrences -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Libellé</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fréquence</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compte</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prochaine exécution</th>
+          <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="recurring-list" class="divide-y divide-gray-200">
+        {% if recurring_list %}
+          {% for r in recurring_list %}
+          <tr class="hover:bg-gray-50" data-id="{{ r.id }}">
+            <td class="px-6 py-4 whitespace-nowrap">
+              {% if r.is_active and r.echecs_consecutifs %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
+                    title="{{ r.derniere_erreur }}">
+                <i class="fas fa-exclamation-triangle mr-1"></i> En échec
+              </span>
+              {% elif r.is_active %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <i class="fas fa-check-circle mr-1"></i> Actif
+              </span>
+              {% elif r.derniere_erreur %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                    title="{{ r.derniere_erreur }}">
+                <i class="fas fa-times-circle mr-1"></i> Suspendu
+              </span>
+              <div class="text-xs text-red-700 mt-1">{{ r.derniere_erreur }}</div>
+              {% else %}
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                <i class="fas fa-pause-circle mr-1"></i> Pausé
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4">
+              <div class="text-sm font-medium text-gray-900">{{ r.libelle }}</div>
+              <div class="text-xs text-gray-500">{{ r.type_transaction }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              {% set is_income = r.type_transaction and r.type_transaction.lower() in ['salaire', 'depot', 'income'] %}
+              <span class="text-sm font-medium {{ 'text-green-600' if is_income else 'text-red-600' }}">
+                {{ '+' if is_income else '-' }}{{ '%.2f'|format(r.montant|float) }} {{ r.devise }}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              {{ r._frequency_display() }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              {{ r.account.name if r.account else 'N/A' }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              {% if r.is_active and r.next_execution_date %}
+                {{ r.next_execution_date.strftime('%d/%m/%Y') }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
+              <button class="text-blue-600 hover:text-blue-900 mr-2 edit-recurring" data-id="{{ r.id }}" title="Modifier">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="mr-2 pause-recurring {{ 'text-yellow-600 hover:text-yellow-800' if r.is_active else 'text-green-600 hover:text-green-800' }}"
+                      data-id="{{ r.id }}" title="{{ 'Mettre en pause' if r.is_active else 'Reprendre' }}">
+                <i class="fas fa-{{ 'pause' if r.is_active else 'play' }}"></i>
+              </button>
+              <button class="text-red-600 hover:text-red-900 delete-recurring" data-id="{{ r.id }}" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+              <i class="fas fa-redo text-3xl block mb-2"></i>
+              <p>Aucune transaction récurrente</p>
+              <p class="text-sm mt-1">Créez-en une pour automatiser vos paiements réguliers.</p>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  #recurring-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5); z-index: 9999;
+    display: none; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+  #recurring-modal.show { display: flex; opacity: 1; visibility: visible; }
+  .modal-content {
+    background: white; border-radius: 8px; width: 90%; max-width: 600px;
+    max-height: 90vh; display: flex; flex-direction: column;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  }
+  .modal-header {
+    padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+  .modal-footer {
+    padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;
+    display: flex; justify-content: flex-end; gap: 0.5rem;
+  }
+  .close { background: none; border: none; font-size: 1.5rem; color: #6b7280; cursor: pointer; }
+  .close:hover { color: #111827; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; font-weight: 500; color: #374151; }
+  .form-control {
+    width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem;
+    font-size: 1rem; transition: border-color 0.15s;
+  }
+  .form-control:focus { border-color: #3b82f6; outline: 0; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+  .full-width { grid-column: 1 / -1; }
+  @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+
+<!-- Modal de création/modification -->
+<div id="recurring-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="recurring-modal-title" style="margin:0; font-size:1.25rem; font-weight:600;">Nouvelle transaction récurrente</h3>
+      <button type="button" class="close close-recurring-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="recurring-form">
+        <input type="hidden" id="recurring-id" name="id">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="rec-type">Type</label>
+            <select id="rec-type" name="type_transaction" class="form-control" required>
+              <option value="expense">Dépense</option>
+              <option value="income">Revenu</option>
+              <option value="transfer">Virement</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="rec-amount">Montant</label>
+            <input type="number" id="rec-amount" name="montant" class="form-control" step="0.01" min="0.01" required>
+          </div>
+          <div class="form-group full-width">
+            <label for="rec-libelle">Libellé</label>
+            <input type="text" id="rec-libelle" name="libelle" class="form-control" placeholder="Ex: Loyer, Salaire..." required>
+          </div>
+          <div class="form-group">
+            <label for="rec-account">Compte</label>
+            <select id="rec-account" name="account_id" class="form-control" required>
+              <option value="">Sélectionner</option>
+              {% for account in accounts %}
+              <option value="{{ account.id }}">{{ account.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="rec-category">Catégorie</label>
+            <select id="rec-category" name="category_id" class="form-control">
+              <option value="">Aucune</option>
+              {% for cat in categories %}
+              <option value="{{ cat.id }}">{{ cat.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group" id="rec-dest-group" style="display:none;">
+            <label for="rec-destination">Compte destination</label>
+            <select id="rec-destination" name="destination_account_id" class="form-control">
+              <option value="">Sélectionner</option>
+              {% for account in accounts %}
+              <option value="{{ account.id }}">{{ account.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="rec-frequency">Fréquence</label>
+            <select id="rec-frequency" name="frequency" class="form-control" required>
+              <option value="daily">Quotidien</option>
+              <option value="weekly">Hebdomadaire</option>
+              <option value="monthly" selected>Mensuel</option>
+              <option value="yearly">Annuel</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="rec-interval">Tous les N</label>
+            <input type="number" id="rec-interval" name="interval" class="form-control" min="1" value="1">
+          </div>
+          <div class="form-group" id="rec-dom-group">
+            <label for="rec-day-of-month">Jour du mois (1-31)</label>
+            <input type="number" id="rec-day-of-month" name="day_of_month" class="form-control" min="1" max="31">
+          </div>
+          <div class="form-group" id="rec-dow-group" style="display:none;">
+            <label for="rec-day-of-week">Jour de la semaine</label>
+            <select id="rec-day-of-week" name="day_of_week" class="form-control">
+              <option value="">Automatique</option>
+              <option value="0">Lundi</option>
+              <option value="1">Mardi</option>
+              <option value="2">Mercredi</option>
+              <option value="3">Jeudi</option>
+              <option value="4">Vendredi</option>
+              <option value="5">Samedi</option>
+              <option value="6">Dimanche</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="rec-start-date">Date de début</label>
+            <input type="text" id="rec-start-date" name="start_date" class="form-control datepicker" required>
+          </div>
+          <div class="form-group">
+            <label for="rec-end-date">Date de fin (optionnel)</label>
+            <input type="text" id="rec-end-date" name="end_date" class="form-control datepicker">
+          </div>
+          <div class="form-group full-width">
+            <label for="rec-notes">Notes (optionnel)</label>
+            <textarea id="rec-notes" name="notes" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded close-recurring-modal">Annuler</button>
+      <button type="button" id="save-recurring-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+  const BASE_URL = '/api/v1';
+
+  // Utilitaires
+  function showAlert(message, type) {
+    const container = document.getElementById('alert-container');
+    const colors = { success: 'green', error: 'red', warning: 'yellow' };
+    const c = colors[type] || 'blue';
+
+    const alert = document.createElement('div');
+    alert.className = `mb-4 p-4 rounded-lg bg-${c}-50 border border-${c}-200 text-${c}-800`;
+    // Rester visible au-dessus du modal (z-index 9999)
+    alert.style.position = 'relative';
+    alert.style.zIndex = '10000';
+
+    const text = document.createElement('span');
+    text.textContent = message;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'float-right font-bold';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => alert.remove());
+
+    alert.appendChild(closeBtn);
+    alert.appendChild(text);
+    container.replaceChildren(alert);
+
+    setTimeout(() => { alert.remove(); }, 5000);
+  }
+
+  function apiRequest(url, method, body) {
+    const opts = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(url, opts).then(r => r.json());
+  }
+
+  // Modal
+  const modal = document.getElementById('recurring-modal');
+  const form = document.getElementById('recurring-form');
+
+  function openModal(title, data) {
+    document.getElementById('recurring-modal-title').textContent = title;
+    form.reset();
+    document.getElementById('recurring-id').value = '';
+    saveBtn.disabled = false;
+
+    if (data) {
+      document.getElementById('recurring-id').value = data.id || '';
+      document.getElementById('rec-type').value = data.type_transaction || 'expense';
+      document.getElementById('rec-amount').value = data.montant || '';
+      document.getElementById('rec-libelle').value = data.libelle || '';
+      document.getElementById('rec-account').value = data.account_id || '';
+      document.getElementById('rec-category').value = data.category_id || '';
+      document.getElementById('rec-destination').value = data.destination_account_id || '';
+      document.getElementById('rec-frequency').value = data.frequency || 'monthly';
+      document.getElementById('rec-interval').value = data.interval || 1;
+      document.getElementById('rec-day-of-month').value = data.day_of_month || '';
+      document.getElementById('rec-day-of-week').value = data.day_of_week !== null ? data.day_of_week : '';
+      document.getElementById('rec-start-date').value = data.start_date || '';
+      document.getElementById('rec-end-date').value = data.end_date || '';
+      document.getElementById('rec-notes').value = data.notes || '';
+    }
+
+    updateFrequencyFields();
+    updateDestField();
+    modal.classList.add('show');
+  }
+
+  function closeModal() { modal.classList.remove('show'); }
+
+  document.querySelectorAll('.close-recurring-modal').forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+  // Afficher/masquer les champs selon la fréquence
+  function updateFrequencyFields() {
+    const freq = document.getElementById('rec-frequency').value;
+    document.getElementById('rec-dom-group').style.display = (freq === 'monthly') ? '' : 'none';
+    document.getElementById('rec-dow-group').style.display = (freq === 'weekly') ? '' : 'none';
+  }
+  document.getElementById('rec-frequency').addEventListener('change', updateFrequencyFields);
+
+  // Afficher le champ destination pour les virements
+  function updateDestField() {
+    const type = document.getElementById('rec-type').value;
+    document.getElementById('rec-dest-group').style.display = (type === 'transfer') ? '' : 'none';
+  }
+  document.getElementById('rec-type').addEventListener('change', updateDestField);
+
+  // Ajouter
+  document.getElementById('add-recurring-btn').addEventListener('click', function() {
+    openModal('Nouvelle transaction récurrente', null);
+  });
+
+  // Modifier
+  document.querySelectorAll('.edit-recurring').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.dataset.id;
+      apiRequest(`${BASE_URL}/recurring/${id}`, 'GET').then(resp => {
+        if (resp.status === 'success') {
+          openModal('Modifier la transaction récurrente', resp.recurring);
+        } else {
+          showAlert(resp.message || 'Erreur', 'error');
+        }
+      });
+    });
+  });
+
+  // Sauvegarder
+  const saveBtn = document.getElementById('save-recurring-btn');
+  saveBtn.addEventListener('click', function() {
+    if (saveBtn.disabled) return; // anti double-clic
+    const id = document.getElementById('recurring-id').value;
+    const data = {
+      type_transaction: document.getElementById('rec-type').value,
+      montant: document.getElementById('rec-amount').value,
+      libelle: document.getElementById('rec-libelle').value,
+      account_id: document.getElementById('rec-account').value,
+      category_id: document.getElementById('rec-category').value || null,
+      destination_account_id: document.getElementById('rec-destination').value || null,
+      frequency: document.getElementById('rec-frequency').value,
+      interval: document.getElementById('rec-interval').value || 1,
+      day_of_month: document.getElementById('rec-day-of-month').value || null,
+      day_of_week: document.getElementById('rec-day-of-week').value || null,
+      start_date: document.getElementById('rec-start-date').value,
+      end_date: document.getElementById('rec-end-date').value || null,
+      notes: document.getElementById('rec-notes').value || null
+    };
+
+    const missing = [];
+    if (!data.libelle) missing.push('Libellé');
+    if (!data.montant) missing.push('Montant');
+    if (!data.account_id) missing.push('Compte');
+    if (!data.start_date) missing.push('Date de début');
+    if (missing.length) {
+      showAlert(`Champs obligatoires manquants : ${missing.join(', ')}.`, 'warning');
+      return;
+    }
+
+    const url = id ? `${BASE_URL}/recurring/${id}` : `${BASE_URL}/recurring`;
+    const method = id ? 'PUT' : 'POST';
+
+    // Verrouiller le bouton pendant la requête pour éviter un double envoi
+    saveBtn.disabled = true;
+    apiRequest(url, method, data).then(resp => {
+      if (resp.status === 'success') {
+        showAlert(id ? 'Récurrence mise à jour.' : 'Récurrence créée.', 'success');
+        closeModal();
+        setTimeout(() => location.reload(), 800);
+      } else {
+        saveBtn.disabled = false;
+        showAlert(resp.message || 'Erreur', 'error');
+      }
+    }).catch(() => {
+      saveBtn.disabled = false;
+      showAlert('Erreur réseau.', 'error');
+    });
+  });
+
+  // Pause/Reprise
+  document.querySelectorAll('.pause-recurring').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.dataset.id;
+      apiRequest(`${BASE_URL}/recurring/${id}/pause`, 'POST').then(resp => {
+        if (resp.status === 'success') {
+          showAlert(resp.message, 'success');
+          setTimeout(() => location.reload(), 800);
+        } else {
+          showAlert(resp.message || 'Erreur', 'error');
+        }
+      });
+    });
+  });
+
+  // Supprimer
+  document.querySelectorAll('.delete-recurring').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = this.dataset.id;
+      const libelle = this.closest('tr')?.querySelector('.text-sm.font-medium.text-gray-900')?.textContent.trim() || 'cette transaction récurrente';
+      showConfirmDialog(
+        'Supprimer la transaction récurrente',
+        `Êtes-vous sûr de vouloir supprimer la récurrence "${libelle}" ? Cette action est irréversible.`,
+        'Supprimer',
+        'Annuler'
+      ).then(confirmed => {
+        if (!confirmed) return;
+        apiRequest(`${BASE_URL}/recurring/${id}`, 'DELETE').then(resp => {
+          if (resp.status === 'success') {
+            showAlert('Récurrence supprimée.', 'success');
+            setTimeout(() => location.reload(), 800);
+          } else {
+            showAlert(resp.message || 'Erreur', 'error');
+          }
+        }).catch(() => showAlert('Erreur réseau.', 'error'));
+      });
+    });
+  });
+
+  // Flatpickr est initialisé dans le bloc extra_js (après chargement de la lib)
+})();
+</script>
+{% endblock %}

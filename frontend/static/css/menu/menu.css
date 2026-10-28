@@ -1,0 +1,175 @@
+/* Styles généraux pour la navigation */
+.nav-container {
+    background-color: #2C3E50;
+    color: white;
+    width: 100%;
+}
+
+.nav-menu {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease-in-out;
+}
+
+.nav-link:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+}
+
+/* Styles pour le menu mobile */
+#mobile-menu-button {
+    transition: all 0.3s ease-in-out;
+    display: block;
+}
+
+@media (min-width: 640px) {
+    #mobile-menu-button {
+        display: none;
+    }
+}
+
+#mobile-menu-button[aria-expanded="true"] {
+    transform: rotate(90deg);
+}
+
+/* Styles pour les icônes du menu mobile */
+#mobile-menu-icon,
+#mobile-close-icon {
+    position: absolute;
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* État initial */
+#mobile-menu-icon {
+    opacity: 1;
+}
+
+#mobile-close-icon {
+    opacity: 0;
+}
+
+/* État quand le menu est ouvert */
+#mobile-menu-button[aria-expanded="true"] #mobile-menu-icon {
+    opacity: 0;
+    transform: rotate(180deg);
+}
+
+#mobile-menu-button[aria-expanded="true"] #mobile-close-icon {
+    opacity: 1;
+    transform: rotate(180deg);
+}
+
+/* Animation pour le menu déroulant */
+#mobile-menu {
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    transform-origin: top right;
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+    display: none;
+}
+
+#mobile-menu.show {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background-color: #2C3E50;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    padding: 0.5rem 0;
+    z-index: 50;
+}
+
+/* Masquer le menu mobile sur desktop */
+@media (min-width: 640px) {
+    #mobile-menu {
+        display: none !important;
+    }
+}
+
+/* Style du menu utilisateur */
+.user-menu {
+    position: absolute;
+    right: 0;
+    z-index: 10;
+    margin-top: 0.5rem;
+    transform: translateY(10px);
+    background-color: #2C3E50;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    display: none;
+}
+
+.user-menu.show {
+    display: flex;
+    align-items: center;
+}
+
+/* Styles pour le dropdown admin */
+.admin-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 50;
+    margin-top: 0.25rem;
+    min-width: 200px;
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.2s ease-out;
+}
+
+.admin-dropdown.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.admin-dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: #374151;
+    transition: all 0.15s ease-in-out;
+    border-radius: 0.375rem;
+    margin: 0.125rem;
+}
+
+.admin-dropdown-item:hover {
+    background-color: #f3f4f6;
+    color: #1f2937;
+}
+
+.admin-dropdown-item i {
+    width: 16px;
+    color: #6b7280;
+}

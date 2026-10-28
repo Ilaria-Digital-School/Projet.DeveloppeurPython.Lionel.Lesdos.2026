@@ -1,0 +1,266 @@
+<!-- Modal de Gestion Complète des Budgets pour Dashboard -->
+<div id="budgets-management-modal" class="fixed inset-0 bg-gray-600/50 hidden z-50">
+  <div class="relative top-4 mx-auto p-0 w-11/12 max-w-6xl bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[95vh] overflow-hidden">
+    
+    <!-- En-tête Modal -->
+    <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
+      <h2 class="text-xl font-semibold"><i class="fas fa-wallet mr-2"></i>Gestion Complète des Budgets</h2>
+      <button id="close-budgets-modal" class="text-white hover:text-gray-200">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    
+    <!-- Onglets Navigation -->
+    <div class="border-b border-gray-200 dark:border-gray-700">
+      <nav class="flex space-x-8 px-6">
+        <button class="budget-tab-btn active py-4 text-blue-600 border-b-2 border-blue-600" data-tab="budgets">
+          <i class="fas fa-chart-pie mr-2"></i>Mes Budgets
+        </button>
+        <button class="budget-tab-btn py-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300" data-tab="alerts">
+          <i class="fas fa-bell mr-2"></i>Alertes & Seuils
+        </button>
+        <button class="budget-tab-btn py-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300" data-tab="performance">
+          <i class="fas fa-chart-line mr-2"></i>Performance
+        </button>
+      </nav>
+    </div>
+    
+    <!-- Contenu Modal -->
+    <div class="modal-content overflow-y-auto" style="max-height: calc(95vh - 140px);">
+      
+      <!-- TAB 1: Mes Budgets (CRUD Complet) -->
+      <div id="budget-tab-budgets" class="budget-tab-content p-6">
+        <!-- Messages de feedback -->
+        <div id="budget-messages" class="mb-4" style="display: none;">
+          <div id="budget-success-message" class="hidden p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span class="message-text"></span>
+          </div>
+          <div id="budget-error-message" class="hidden p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            <span class="message-text"></span>
+          </div>
+        </div>
+
+        <!-- Barre d'actions -->
+        <div class="flex justify-between items-center mb-6">
+          <div class="flex space-x-4">
+            <button id="new-budget-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">
+              <i class="fas fa-plus mr-2"></i>Nouveau Budget
+            </button>
+            <button id="refresh-budgets-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-200">
+              <i class="fas fa-sync-alt mr-2"></i>Actualiser
+            </button>
+          </div>
+          <div id="budget-stats" class="text-sm text-gray-600 dark:text-gray-400">
+            <span id="budget-count">0</span> budgets actifs • Budget total: <span id="total-budget">0€</span>
+          </div>
+        </div>
+        
+        <!-- Tableau CRUD Budgets -->
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Catégorie
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Budget / Dépensé
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Période
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Seuil d'alerte
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Statut
+                </th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody id="budgets-table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tr id="no-budgets" class="hidden">
+                <td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <i class="fas fa-piggy-bank text-4xl mb-4 text-gray-300"></i>
+                  <p class="text-lg">Aucun budget défini</p>
+                  <p class="text-sm">Cliquez sur "Nouveau Budget" pour commencer</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div id="budget-pagination" class="mt-6 flex justify-center">
+          <nav class="flex space-x-2">
+            <button id="budget-prev-page" class="px-3 py-1 text-sm border rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50" disabled>
+              Précédent
+            </button>
+            <span id="budget-page-info" class="px-3 py-1 text-sm">Page 1 sur 1</span>
+            <button id="budget-next-page" class="px-3 py-1 text-sm border rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50" disabled>
+              Suivant
+            </button>
+          </nav>
+        </div>
+      </div>
+      
+      <!-- TAB 2: Alertes & Seuils -->
+      <div id="budget-tab-alerts" class="budget-tab-content p-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- Configuration Globale -->
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-cog mr-2"></i>Configuration Globale</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Seuil d'alerte par défaut
+                </label>
+                <div class="flex items-center space-x-2">
+                  <input type="range" id="default-threshold" min="50" max="100" value="90" class="flex-1">
+                  <span id="threshold-value" class="text-sm font-medium w-12 dark:text-white">90%</span>
+                </div>
+              </div>
+              <div class="text-sm text-gray-600 dark:text-gray-400">
+                <i class="fas fa-info-circle mr-2"></i>
+                Les notifications sont gérées dans votre profil utilisateur.
+                <a href="/profile/" class="text-blue-600 hover:text-blue-800 ml-1">
+                  Configurer les notifications →
+                </a>
+              </div>
+              <button id="save-threshold-config" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition duration-200">
+                Sauvegarder le seuil par défaut
+              </button>
+            </div>
+          </div>
+          
+          <!-- Alertes Actives -->
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-exclamation-triangle mr-2 text-red-500"></i>Alertes Actives</h3>
+            <div id="active-alerts" class="space-y-3">
+              <!-- Les alertes seront chargées dynamiquement -->
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- TAB 3: Performance -->
+      <div id="budget-tab-performance" class="budget-tab-content p-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Graphique Performance Mensuelle -->
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-chart-area mr-2 text-blue-500"></i>Performance Mensuelle</h3>
+            <canvas id="performance-chart" width="400" height="200"></canvas>
+          </div>
+          
+          <!-- Top/Flop Budgets -->
+          <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4 dark:text-white"><i class="fas fa-trophy mr-2 text-yellow-500"></i>Top/Flop Budgets</h3>
+            <div id="budget-performance-list" class="space-y-3">
+              <!-- Performance des budgets chargée dynamiquement -->
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      
+    </div>
+  </div>
+</div>
+
+<!-- Modal Formulaire Budget (Création/Modification) -->
+<div id="budget-form-modal" class="fixed inset-0 bg-gray-600/50 hidden z-50 overflow-y-auto">
+  <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full p-6">
+      <div class="flex justify-between items-center pb-3">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white" id="budget-form-title">Nouveau Budget</h3>
+        <button id="close-budget-form" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+    
+    <form id="budget-form" class="space-y-4">
+      <input type="hidden" id="budget-id" value="">
+      <meta name="csrf-token" content="{{ csrf_token() }}">
+      
+      <div>
+        <label for="budget-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom du budget</label>
+        <input type="text" id="budget-name" name="name" required 
+               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+               placeholder="Ex: Alimentation, Transport...">
+      </div>
+      
+      <div>
+        <label for="budget-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie</label>
+        <select id="budget-category" name="category_id" required 
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+          <option value="">Sélectionnez une catégorie</option>
+          <!-- Les catégories seront chargées dynamiquement -->
+        </select>
+      </div>
+      
+      <div>
+        <label for="budget-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Montant</label>
+        <div class="mt-1 relative rounded-md shadow-sm">
+          <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none">€</span>
+          <input type="number" name="amount" id="budget-amount" step="0.01" min="0.01" required 
+                 class="pl-7 pr-12 block w-full border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" 
+                 placeholder="0.00">
+        </div>
+      </div>
+      
+      <div>
+        <label for="budget-period" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Période</label>
+        <select id="budget-period" name="period" required 
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+          <option value="monthly">Mensuel</option>
+          <option value="yearly">Annuel</option>
+          <option value="custom">Personnalisé</option>
+        </select>
+      </div>
+      
+      <div id="custom-dates" class="hidden space-y-4">
+        <div>
+          <label for="budget-start-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date de début</label>
+          <input type="date" name="start_date" id="budget-start-date" 
+                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+        </div>
+        
+        <div>
+          <label for="budget-end-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date de fin (optionnel)</label>
+          <input type="date" name="end_date" id="budget-end-date" 
+                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+        </div>
+      </div>
+
+      <div>
+        <label for="budget-threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seuil d'alerte (%)</label>
+        <input type="number" name="notification_threshold" id="budget-threshold" min="1" max="100" value="90"
+               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+      </div>
+
+      <div>
+        <label for="budget-notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optionnel)</label>
+        <textarea name="notes" id="budget-notes" rows="3" maxlength="500"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Notes supplémentaires sur ce budget..."></textarea>
+      </div>
+      
+      <div class="flex justify-end space-x-3 pt-4">
+        <button type="button" id="cancel-budget-form" 
+                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          Annuler
+        </button>
+        <button type="submit" 
+                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          Enregistrer
+        </button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>

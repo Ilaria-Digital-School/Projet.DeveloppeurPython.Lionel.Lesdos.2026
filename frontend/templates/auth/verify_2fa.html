@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Vérification en deux étapes{% endblock %}
+
+{% block extra_css %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+.verification-container {
+    max-width: 400px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.code-input {
+    font-family: 'Courier New', monospace;
+    font-size: 1.5rem;
+    letter-spacing: 0.5em;
+    text-align: center;
+    padding: 1rem;
+    border: 2px solid #e5e5e5;
+    border-radius: 8px;
+    width: 100%;
+    transition: border-color 0.3s;
+}
+
+.code-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.backup-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e5e5;
+}
+
+.toggle-backup {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.toggle-backup:hover {
+    text-decoration: underline;
+}
+
+.hidden {
+    display: none;
+}
+
+.alert {
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.alert-error {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+
+.alert-warning {
+    background-color: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+}
+
+.alert-success {
+    background-color: #dcfce7;
+    color: #16a34a;
+    border: 1px solid #86efac;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="verification-container">
+    <!-- En-tête -->
+    <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            {% if two_factor_method == 'email' %}
+                <i class="fas fa-envelope text-blue-600 text-2xl"></i>
+            {% else %}
+                <i class="fas fa-mobile-alt text-blue-600 text-2xl"></i>
+            {% endif %}
+        </div>
+        <h1 class="text-2xl font-bold text-gray-900 mb-2">Vérification en deux étapes</h1>
+        <p class="text-gray-600">
+            {% if two_factor_method == 'email' %}
+                Entrez le code de vérification envoyé par email à <strong>{{ user_email }}</strong>
+            {% else %}
+                Entrez le code de vérification généré par votre application d'authentification pour <strong>{{ user_email }}</strong>
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Messages flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'error' if category == 'error' else 'warning' if category == 'warning' else 'success' }}">
+                    <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'exclamation-triangle' if category == 'warning' else 'check-circle' }} mr-2"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Formulaire de vérification -->
+    <form method="POST" action="{{ url_for('auth.verify_2fa') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <!-- Section code TOTP -->
+        <div id="totp-section">
+            <div class="mb-4">
+                <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
+                    Code de vérification (6 chiffres)
+                </label>
+                <input 
+                    type="text" 
+                    id="code" 
+                    name="code" 
+                    class="code-input"
+                    placeholder="000000" 
+                    maxlength="6" 
+                    pattern="[0-9]{6}"
+                    autocomplete="one-time-code"
+                    autofocus
+                >
+                <p class="text-xs text-gray-500 mt-2">
+                    <i class="fas fa-clock mr-1"></i>
+                    {% if two_factor_method == 'email' %}
+                        Le code expire dans 15 minutes
+                    {% else %}
+                        Les codes se renouvellent automatiquement toutes les 30 secondes
+                    {% endif %}
+                </p>
+            </div>
+
+            <button 
+                type="submit" 
+                class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                id="verify-btn"
+                disabled
+            >
+                <i class="fas fa-check mr-2"></i>
+                Vérifier et continuer
+            </button>
+
+            {% if two_factor_method == 'email' %}
+            <div class="mt-3 text-center">
+                <button 
+                    type="button"
+                    class="text-sm text-blue-600 hover:text-blue-800"
+                    id="resend-code-btn"
+                >
+                    <i class="fas fa-redo mr-1"></i>
+                    Renvoyer le code
+                </button>
+                <div id="resend-result" class="mt-2 hidden"></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Section codes de récupération -->
+        <div class="backup-section">
+            <div class="text-center">
+                <a href="#" class="toggle-backup" id="show-backup">
+                    <i class="fas fa-key mr-1"></i>
+                    Utiliser un code de récupération
+                </a>
+            </div>
+
+            <div id="backup-section" class="hidden mt-4">
+                <div class="mb-4">
+                    <label for="backup_code" class="block text-sm font-medium text-gray-700 mb-2">
+                        Code de récupération
+                    </label>
+                    <input 
+                        type="text" 
+                        id="backup_code" 
+                        name="backup_code" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-center"
+                        placeholder="0000-0000"
+                        maxlength="9"
+                    >
+                    <p class="text-xs text-gray-500 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Chaque code de récupération ne peut être utilisé qu'une seule fois
+                    </p>
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="w-full bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                    id="backup-verify-btn"
+                    disabled
+                >
+                    <i class="fas fa-key mr-2"></i>
+                    Utiliser le code de récupération
+                </button>
+
+                <div class="text-center mt-3">
+                    <a href="#" class="toggle-backup text-sm text-gray-600" id="hide-backup">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Retour au code de vérification
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Aide et liens -->
+    <div class="mt-6 pt-4 border-t border-gray-200 text-center">
+        <div class="text-sm text-gray-600 mb-3">
+            <p><strong>Problème d'accès ?</strong></p>
+            <p>Si vous n'avez plus accès à votre téléphone, utilisez un code de récupération ci-dessus.</p>
+        </div>
+        
+        <a href="{{ url_for('auth.login') }}" class="text-sm text-blue-600 hover:text-blue-800">
+            <i class="fas fa-arrow-left mr-1"></i>
+            Retour à la connexion
+        </a>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.getElementById('code');
+    const backupCodeInput = document.getElementById('backup_code');
+    const verifyBtn = document.getElementById('verify-btn');
+    const backupVerifyBtn = document.getElementById('backup-verify-btn');
+    const totpSection = document.getElementById('totp-section');
+    const backupSection = document.getElementById('backup-section');
+    const showBackupBtn = document.getElementById('show-backup');
+    const hideBackupBtn = document.getElementById('hide-backup');
+
+    // Validation en temps réel du code TOTP
+    codeInput.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+        
+        if (this.value.length === 6) {
+            verifyBtn.disabled = false;
+            verifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            verifyBtn.disabled = true;
+            verifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    });
+
+    // Validation en temps réel du code de récupération
+    backupCodeInput.addEventListener('input', function() {
+        // Format: 0000-0000
+        let value = this.value.replace(/\D/g, '').slice(0, 8);
+        if (value.length > 4) {
+            value = value.slice(0, 4) + '-' + value.slice(4);
+        }
+        this.value = value;
+        
+        if (value.length === 9) { // 0000-0000 = 9 caractères
+            backupVerifyBtn.disabled = false;
+            backupVerifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            backupVerifyBtn.disabled = true;
+            backupVerifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    });
+
+    // Basculer vers les codes de récupération
+    showBackupBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        totpSection.style.display = 'none';
+        backupSection.classList.remove('hidden');
+        backupCodeInput.focus();
+        
+        // Vider et désactiver le champ TOTP
+        codeInput.value = '';
+        verifyBtn.disabled = true;
+    });
+
+    // Retour aux codes TOTP
+    hideBackupBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        totpSection.style.display = 'block';
+        backupSection.classList.add('hidden');
+        codeInput.focus();
+        
+        // Vider et désactiver le champ de récupération
+        backupCodeInput.value = '';
+        backupVerifyBtn.disabled = true;
+    });
+
+    // Soumission automatique avec Enter
+    codeInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && this.value.length === 6) {
+            verifyBtn.click();
+        }
+    });
+
+    backupCodeInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && this.value.length === 9) {
+            backupVerifyBtn.click();
+        }
+    });
+
+    // États initiaux des boutons
+    verifyBtn.disabled = true;
+    verifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    backupVerifyBtn.disabled = true;
+    backupVerifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+    // Gestion du renvoie de code par email
+    const resendCodeBtn = document.getElementById('resend-code-btn');
+    const resendResult = document.getElementById('resend-result');
+    
+    if (resendCodeBtn) {
+        resendCodeBtn.addEventListener('click', async function() {
+            try {
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Envoi...';
+                
+                const response = await fetch('/api/v1/auth/2fa/resend-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (resendResult) {
+                    resendResult.classList.remove('hidden');
+                    if (result.status === 'success') {
+                        resendResult.innerHTML = '<div class="alert alert-success text-sm"><i class="fas fa-check-circle mr-2"></i>' + result.message + '</div>';
+                    } else {
+                        resendResult.innerHTML = '<div class="alert alert-error text-sm"><i class="fas fa-exclamation-circle mr-2"></i>' + result.message + '</div>';
+                    }
+                    
+                    // Masquer le message après 5 secondes
+                    setTimeout(() => {
+                        resendResult.classList.add('hidden');
+                    }, 5000);
+                }
+                
+            } catch (error) {
+                console.error('Erreur renvoie code:', error);
+                if (resendResult) {
+                    resendResult.classList.remove('hidden');
+                    resendResult.innerHTML = '<div class="alert alert-error text-sm"><i class="fas fa-exclamation-circle mr-2"></i>Erreur lors du renvoie</div>';
+                }
+            } finally {
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-redo mr-1"></i>Renvoyer le code';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

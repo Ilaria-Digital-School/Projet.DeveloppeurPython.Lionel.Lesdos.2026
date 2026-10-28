@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/login.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h3>Connexion</h3>
+        </div>
+        <div class="login-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form class="login-form" action="{{ url_for('auth.login') }}" method="POST" autocomplete="on" novalidate>
+                <!-- Token CSRF généré par Flask-WTF -->
+                {% if form and form.hidden_tag %}
+                    {{ form.hidden_tag() }}
+                {% else %}
+                    <!-- Fallback: génération directe du token CSRF -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"/>
+                {% endif %}
+                
+                <div class="form-group">
+                    <label for="email" class="form-label">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="form-control" 
+                        placeholder="Entrez votre email" 
+                        autocomplete="email" 
+                        required 
+                        autofocus
+                    >
+                    <div class="invalid-feedback email-error" style="display: none;">
+                        Veuillez entrer un email valide
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">Mot de passe</label>
+                    <div style="position: relative;">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-control" 
+                            placeholder="Entrez votre mot de passe" 
+                            autocomplete="current-password" 
+                            required
+                            minlength="6"
+                        >
+                        <span class="toggle-password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">👁️</span>
+                    </div>
+                    <div class="invalid-feedback password-error" style="display: none;">
+                        Le mot de passe doit contenir au moins 6 caractères
+                    </div>
+                </div>
+                
+                <div class="form-group form-check">
+                    <input type="checkbox" class="form-check-input" id="remember_me" name="remember_me">
+                    <label class="form-check-label" for="remember_me">Se souvenir de moi</label>
+                </div>
+                
+                <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+            </form>
+            
+            <div class="login-footer">
+                <p>Pas encore de compte ? <a href="{{ url_for('auth.register') }}">Créer un compte</a></p>
+                <p><a href="{{ url_for('auth.reset_password_request') }}">Mot de passe oublié ?</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+    // Définir l'URL du tableau de bord pour une utilisation dans login.js
+    const DASHBOARD_URL = "{{ url_for('dashboard_bp.dashboard') }}";
+</script>
+<script src="{{ url_for('static', filename='js/pages/login.js') }}?v=2"></script>
+{% endblock %}

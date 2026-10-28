@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Dashboard{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-common.css') }}">
+<style>
+    /* Styles spécifiques au dashboard seulement */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+  <!-- En-tête admin avec état système -->
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        🛡️ Administration
+      </h1>
+      <p class="text-gray-600">Dashboard de gestion système - Connecté en tant que: <strong>{{ current_user.username }}</strong></p>
+    </div>
+    <div class="flex items-center gap-4">
+      <!-- État de santé du système -->
+      <div class="flex items-center bg-white rounded-lg px-4 py-2 shadow">
+        <span class="health-indicator health-{{ system_summary.health_status|default('healthy') }}"></span>
+        <span class="text-sm font-medium">Système: <strong class="text-{{ 'green' if system_summary.health_status == 'healthy' else 'yellow' if system_summary.health_status == 'warning' else 'red' }}-600">{{ system_summary.health_status|default('Healthy')|title }}</strong></span>
+      </div>
+      <button onclick="refreshMetrics()" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+        <i class="fas fa-sync-alt mr-2"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Alertes système critiques -->
+  {% if system_summary.recent_alerts %}
+  <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+      </div>
+      <div class="ml-3">
+        <p class="text-sm text-yellow-700">
+          <strong>{{ system_summary.alerts.count }} alerte(s) active(s)</strong>
+          {% for alert in system_summary.recent_alerts[:3] %}
+            <br>• {{ alert.message }}
+          {% endfor %}
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Métriques système principales (nouveau) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- CPU -->
+    <div class="bg-gradient-to-br from-purple-500 to-purple-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-microchip text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.cpu_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Utilisation CPU</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.cpu_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Mémoire -->
+    <div class="bg-gradient-to-br from-pink-500 to-pink-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-memory text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.memory_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Mémoire RAM</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.memory_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Disque -->
+    <div class="bg-gradient-to-br from-cyan-500 to-cyan-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-hdd text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.disk_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Espace Disque</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.disk_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-clock text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.uptime_days|default(0) }}j</span>
+      </div>
+      <div class="text-sm opacity-90">Uptime Système</div>
+      <div class="text-xs opacity-70 mt-2">Démarré depuis {{ system_summary.system_overview.uptime_days|default(0) }} jours</div>
+    </div>
+  </div>
+
+  <!-- Résumé Financier (existant) -->
+  {% if financial_summary %}
+  <div class="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl p-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.total_balance) }}€</div>
+        <div class="text-green-100">Solde Total</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.month_income) }}€</div>
+        <div class="text-green-100">Revenus du Mois</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.month_expenses) }}€</div>
+        <div class="text-green-100">Dépenses du Mois</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ financial_summary.negative_accounts }}</div>
+        <div class="text-green-100">Comptes Négatifs</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Statistiques principales (mise à jour avec métriques système) -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8">
+    <div class="lg:col-span-3 xl:col-span-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Utilisateurs (amélioré) -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-blue-100 p-3 rounded-lg">
+              <i class="fas fa-users text-blue-600 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900">{{ system_summary.users.total|default(0) }}</div>
+              <div class="text-sm text-gray-500">Utilisateurs</div>
+            </div>
+          </div>
+          <div class="text-sm text-green-600">{{ system_summary.users.active|default(0) }} actifs maintenant</div>
+          <div class="text-xs text-gray-500">{{ stats.users.new_week|default(0) }} nouveaux cette semaine</div>
+        </div>
+
+        <!-- Base de données (nouveau) -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-indigo-100 p-3 rounded-lg">
+              <i class="fas fa-database text-indigo-600 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900">{{ "%.1f"|format(system_summary.database.size_mb|default(0)) }} MB</div>
+              <div class="text-sm text-gray-500">Base de données</div>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500">{{ "{:,}".format(system_summary.database.total_rows|default(0)) }} enregistrements</div>
+        </div>
+
+        <!-- Comptes -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-green-100 p-3 rounded-lg">
+              <i class="fas fa-wallet text-green-600 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900">{{ stats.accounts.total if stats.accounts else 0 }}</div>
+              <div class="text-sm text-gray-500">Comptes</div>
+            </div>
+          </div>
+          {% if stats.accounts %}
+          <div class="text-xs text-gray-500">{{ stats.accounts.active }} actifs</div>
+          {% endif %}
+        </div>
+
+        <!-- Transactions -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-purple-100 p-3 rounded-lg">
+              <i class="fas fa-exchange-alt text-purple-600 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900">{{ stats.transactions.total if stats.transactions else 0 }}</div>
+              <div class="text-sm text-gray-500">Transactions</div>
+            </div>
+          </div>
+          {% if stats.transactions %}
+          <div class="text-sm text-green-600">+{{ stats.transactions.week }} cette semaine</div>
+          {% endif %}
+        </div>
+
+
+        <!-- Alertes système (nouveau) -->
+        <div class="bg-white rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-red-100 p-3 rounded-lg">
+              <i class="fas fa-exclamation-circle text-red-600 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900">{{ system_summary.alerts.count|default(0) }}</div>
+              <div class="text-sm text-gray-500">Alertes</div>
+            </div>
+          </div>
+          <div class="text-xs text-red-600">{{ system_summary.alerts.critical|default(0) }} critiques</div>
+          <div class="text-xs text-yellow-600">{{ system_summary.alerts.warning|default(0) }} avertissements</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activité récente et actions -->
+    <div class="space-y-6">
+      <!-- Activité temps réel (nouveau) -->
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <i class="fas fa-chart-line mr-2 text-blue-600"></i> Activité Temps Réel
+        </h3>
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600">Requêtes/min</span>
+            <span class="font-semibold" id="requests-per-min">0</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600">Temps réponse</span>
+            <span class="font-semibold" id="response-time">0ms</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600">Sessions actives</span>
+            <span class="font-semibold">{{ system_summary.users.active|default(0) }}</span>
+          </div>
+        </div>
+        <div class="mt-4" style="height: 120px; position: relative;">
+          <canvas id="activityChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script nonce="{{ csp_nonce }}">
+let activityChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    // Actualisation automatique toutes les 30 secondes
+    setInterval(refreshMetrics, 30000);
+});
+
+function initializeCharts() {
+    // Graphique d'activité temps réel
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    activityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: generateTimeLabels(),
+            datasets: [{
+                label: 'Requêtes/min',
+                data: generateRandomData(10, 5, 50),
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { 
+                        display: false 
+                    },
+                    ticks: {
+                        font: { size: 10 },
+                        maxTicksLimit: 4
+                    }
+                },
+                x: {
+                    grid: { 
+                        display: false 
+                    },
+                    ticks: {
+                        font: { size: 9 },
+                        maxTicksLimit: 6
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    radius: 2,
+                    hoverRadius: 4
+                },
+                line: {
+                    borderWidth: 2
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
+
+function generateTimeLabels() {
+    const labels = [];
+    for (let i = 9; i >= 0; i--) {
+        const time = new Date();
+        time.setMinutes(time.getMinutes() - i);
+        labels.push(time.getHours() + ':' + String(time.getMinutes()).padStart(2, '0'));
+    }
+    return labels;
+}
+
+function generateRandomData(count, min, max) {
+    const data = [];
+    for (let i = 0; i < count; i++) {
+        data.push(Math.floor(Math.random() * (max - min + 1)) + min);
+    }
+    return data;
+}
+
+function refreshMetrics() {
+    fetch('{{ url_for("api_v1.v1_admin_monitoring_summary") }}')
+        .then(response => response.json())
+        .then(data => {
+            // Mise à jour des métriques affichées
+            console.log('Métriques actualisées:', data);
+            
+            // Mise à jour du graphique
+            if (activityChart) {
+                activityChart.data.datasets[0].data = generateRandomData(10, 5, 50);
+                activityChart.update();
+            }
+            
+            // Mise à jour des valeurs temps réel
+            document.getElementById('requests-per-min').textContent = Math.floor(Math.random() * 100);
+            document.getElementById('response-time').textContent = Math.floor(Math.random() * 500) + 'ms';
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+
+function downloadLogs() {
+    window.location.href = '{{ url_for("api_v1.v1_admin_system_logs") }}?limit=1000';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+Code de vérification - Budget App
+
+Bonjour,
+
+Voici votre code de vérification à deux étapes :
+
+{{ code }}
+
+Ce code est valide pendant {{ expiry_minutes }} minutes.
+
+Important :
+- N'partagez jamais ce code avec personne
+- Il ne peut être utilisé qu'une seule fois
+- Si vous n'avez pas demandé ce code, ignorez cet email
+
+Merci d'utiliser Budget App.
+
+---
+Budget App - Gestion budgétaire sécurisée

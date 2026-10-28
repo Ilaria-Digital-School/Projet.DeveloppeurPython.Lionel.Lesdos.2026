@@ -1,0 +1,123 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & securite (backend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Meme version que le Dockerfile de production (syntaxe Python 3.14)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dev tools
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          # Memes versions que backend/requirements-dev.txt
+          pip install black==26.5.1 isort==8.0.1 flake8==7.3.0 bandit==1.9.4
+
+      # Ordre des imports (config : [tool.isort] dans pyproject.toml)
+      - name: isort
+        working-directory: backend
+        run: isort --check-only --profile black .
+
+      # Formatage (config : [tool.black] dans pyproject.toml)
+      - name: black
+        working-directory: backend
+        run: black --check .
+
+      # Erreurs reelles seulement : imports/variables inutilises, noms
+      # indefinis, redefinitions (config : backend/.flake8)
+      - name: flake8
+        working-directory: backend
+        run: flake8 .
+
+      # Securite statique, gravite moyenne et superieure
+      # (config : [tool.bandit] dans pyproject.toml)
+      - name: bandit
+        working-directory: backend
+        run: bandit -c pyproject.toml -r . -ll
+
+  test:
+    name: Pytest (backend)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: budget_user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: budget_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Meme version que le Dockerfile de production
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      # Les tests creent leurs tables depuis les modeles (create_all) : ils ne
+      # voient pas un ecart entre modeles et migrations. On rejoue donc toutes
+      # les migrations sur une base vide, puis on verifie qu'il ne manque rien.
+      - name: Check migrations match models
+        working-directory: backend
+        env:
+          PGPASSWORD: password
+          DATABASE_URL: postgresql://budget_user:password@localhost:5432/budget_migrations
+          FLASK_APP: app:create_app('development')
+          SECRET_KEY: ci-secret-key
+          JWT_SECRET_KEY: ci-jwt-secret-key
+          SECURITY_PASSWORD_SALT: ci-salt
+          WTF_CSRF_SECRET_KEY: ci-csrf-secret-key
+          CSRF_SECRET_KEY: ci-csrf-secret-key
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          psql -h localhost -U budget_user -d budget_test -c "CREATE DATABASE budget_migrations"
+          flask db upgrade
+          flask db check
+
+      # La couverture est mesuree sur le code applicatif ; le seuil (fail_under)
+      # est defini dans backend/pyproject.toml ([tool.coverage.report]).
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL_TEST: postgresql://budget_user:password@localhost:5432/budget_test
+        run: >-
+          python -m pytest --tb=short -q
+          --cov=api --cov=app --cov=core --cov=modules
+          --cov-report=term-missing:skip-covered

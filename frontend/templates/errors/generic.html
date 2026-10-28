@@ -1,0 +1,12 @@
+{# Template générique pour les erreurs HTTP sans template dédié #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Erreur{% endtrans %} {{ error.code }}{% endblock %}
+
+{% block content %}
+    {% set error_title = error.name %}
+    {% set error_code = error.code %}
+    {% set error_icon = "fas fa-exclamation-triangle" %}
+    {% set error_message = error.description %}
+    {{ super() }}
+{% endblock %}
