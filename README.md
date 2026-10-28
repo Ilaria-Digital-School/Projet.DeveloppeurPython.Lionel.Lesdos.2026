@@ -78,7 +78,7 @@ Appli_Web_Budget/
 ### Installation rapide (script assiste)
 
 ```bash
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
+git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Installation interactive (choix Docker ou local)
@@ -99,7 +99,7 @@ Le script genere automatiquement les cles secretes, cree le `.env`, et configure
 
 ```bash
 # Cloner le depot
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
+git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Configurer l'environnement
@@ -128,7 +128,7 @@ L'application (Gunicorn) ecoute sur le port 5000 a l'interieur du reseau Docker 
 
 ```bash
 # Cloner le depot
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
+git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Creer la base de donnees PostgreSQL

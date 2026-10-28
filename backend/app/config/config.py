@@ -205,9 +205,7 @@ class ProductionConfig(Config):
     LOG_LEVEL = "INFO"
     CORS_ORIGINS = [
         o.strip()
-        for o in os.environ.get("CORS_ORIGINS", "https://example.com").split(
-            ","
-        )
+        for o in os.environ.get("CORS_ORIGINS", "https://example.com").split(",")
         if o.strip()
     ]
 
