@@ -203,7 +203,7 @@ pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
 cd backend
 export DATABASE_URL_TEST=postgresql://budget_user:MOT_DE_PASSE@localhost:5432/budget_test
-python3 -m pytest --tb=short -q        # 488 tests
+python3 -m pytest --tb=short -q        # 489 tests
 pytest --cov=. tests/                   # Avec couverture de code
 pytest tests/unit/                      # Tests unitaires uniquement
 pytest tests/integration/               # Tests d'integration uniquement
