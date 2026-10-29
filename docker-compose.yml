@@ -20,10 +20,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       # Loopback uniquement : accessible depuis l'hôte (tests pytest),
-      # jamais depuis l'extérieur.
-      - "127.0.0.1:5432:5432"
+      # jamais depuis l'extérieur. DB_PORT si 5432 est déjà pris.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18 range ses données dans un sous-dossier par version
+      # majeure de /var/lib/postgresql
+      - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - budget_network
@@ -66,6 +68,10 @@ services:
         condition: service_healthy
     # Sonde /healthz (app + base). Docker marque le conteneur "unhealthy" sans
     # le redémarrer : visible dans `docker compose ps` et pour la supervision.
+    # Application : http://localhost:5000 (APP_PORT si 5000 est déjà pris).
+    # Loopback uniquement ; en production, un reverse proxy est placé devant.
+    ports:
+      - "127.0.0.1:${APP_PORT:-5000}:5000"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=5).status == 200 else 1)"]
       interval: 30s
@@ -75,17 +81,10 @@ services:
     volumes:
       - app_uploads:/app/backend/instance/uploads
       - app_logs:/app/backend/logs
-      # Bind mount du répertoire hôte servi par le reverse proxy (:ro côté nginx).
-      # Les statics modifiés sont ainsi immédiatement en ligne, et les avatars
-      # uploadés par l'app sont visibles par nginx.
+      # Fichiers statiques de l'hôte : modifiables sans reconstruire l'image
       - ./frontend/static:/app/frontend/static
     networks:
-      budget_network: {}
-      proxy_network:
-        # proxy_network devient la passerelle par défaut : la sortie internet de
-        # l'app (SMTP OVH pour la 2FA) transite via 172.19, qui a déjà sa règle
-        # NAT/forward (certbot). budget_network (db/redis) reste isolé d'internet.
-        gw_priority: 1
+      - budget_network
 
   # ============================================
   # Scheduler (transactions récurrentes)
@@ -123,5 +122,3 @@ volumes:
 networks:
   budget_network:
     driver: bridge
-  proxy_network:
-    external: true

@@ -188,19 +188,34 @@ setup_docker() {
         exit 1
     fi
 
-    # Appliquer les migrations
-    info "Application des migrations..."
-    docker compose exec app flask db upgrade
+    # Les migrations sont appliquees par le conteneur app a son demarrage
+    # (docker/scripts/entrypoint.sh) : attendre qu'il reponde
+    info "Attente du demarrage de l'application (migrations comprises)..."
+    retries=60
+    while [ $retries -gt 0 ]; do
+        if [ "$(docker inspect -f '{{.State.Health.Status}}' budget-app 2>/dev/null)" = "healthy" ]; then
+            success "Application demarree."
+            break
+        fi
+        retries=$((retries - 1))
+        sleep 3
+    done
+
+    if [ $retries -eq 0 ]; then
+        error "L'application n'a pas demarre dans le delai imparti."
+        echo "Verifiez les logs : docker compose logs app"
+        exit 1
+    fi
 
     echo ""
     success "Installation terminee !"
     echo ""
     echo -e "${GREEN}L'application est accessible sur :${NC}"
-    echo -e "  ${BLUE}http://localhost:8080${NC}"
+    echo -e "  ${BLUE}http://localhost:${APP_PORT:-5000}${NC}"
     echo ""
     echo -e "Commandes utiles :"
     echo -e "  docker compose logs -f app     # Voir les logs"
-    echo -e "  docker compose exec app flask create-admin  # Creer un admin"
+    echo -e "  docker compose exec -w /app/backend app flask create-admin  # Creer un admin"
     echo -e "  docker compose down            # Arreter les services"
 }
 

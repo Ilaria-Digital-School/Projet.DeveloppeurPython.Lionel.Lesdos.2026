@@ -78,7 +78,8 @@ Appli_Web_Budget/
 ### Installation rapide (script assiste)
 
 ```bash
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
+# Cloner le depot (cree le dossier Appli_Web_Budget)
+git clone https://github.com/Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Installation interactive (choix Docker ou local)
@@ -98,37 +99,42 @@ Le script genere automatiquement les cles secretes, cree le `.env`, et configure
 **Prerequis** : Docker, Docker Compose V2
 
 ```bash
-# Cloner le depot
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
+# Cloner le depot (cree le dossier Appli_Web_Budget)
+git clone https://github.com/Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Configurer l'environnement
 cp .env.example .env
-# Editer .env : generer SECRET_KEY, JWT_SECRET_KEY, WTF_CSRF_SECRET_KEY, SECURITY_PASSWORD_SALT
-# Definir POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-# DATABASE_URL=postgresql://USER:PASSWORD@db:5432/DB_NAME
+# Editer .env : remplacer les valeurs "votre-..." de SECRET_KEY, JWT_SECRET_KEY,
+# CSRF_SECRET_KEY, WTF_CSRF_SECRET_KEY et SECURITY_PASSWORD_SALT
+#   (generer une valeur : python3 -c "import secrets; print(secrets.token_hex(32))")
+# POSTGRES_USER, POSTGRES_PASSWORD et POSTGRES_DB doivent correspondre a
+#   DATABASE_URL=postgresql://USER:PASSWORD@db:5432/DB_NAME
 
-# Lancer les services (PostgreSQL + Redis + App)
+# Lancer les services (PostgreSQL, Redis, application, scheduler).
+# Les migrations sont appliquees automatiquement au demarrage de l'application.
 docker compose up --build -d
 
-# Appliquer les migrations
-docker compose exec app flask db upgrade
-
 # Creer un administrateur
-docker compose exec app flask create-admin
+docker compose exec -w /app/backend app flask create-admin
 ```
 
-L'application (Gunicorn) ecoute sur le port 5000 a l'interieur du reseau Docker (port non publie sur l'hote) : l'acces se fait via le reverse proxy Nginx externe, relie par le reseau `proxy_network`.
+L'application est accessible sur **http://localhost:5000** des que `docker compose ps`
+indique `budget-app` en `healthy` (environ 30 secondes).
+
+> Port deja utilise sur la machine : definir `APP_PORT` (application, 5000 par defaut)
+> ou `DB_PORT` (PostgreSQL, 5432 par defaut) dans `.env`, par exemple `DB_PORT=5433`.
 
 ---
 
 ### B. Sans Docker (developpement local)
 
-**Prerequis** : Python 3.10+, PostgreSQL 14+ installe localement
+**Prerequis** : Python 3.11+ (3.14 recommande, version de l'image Docker et de la CI),
+PostgreSQL 14+ et Redis installes localement
 
 ```bash
-# Cloner le depot
-git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
+# Cloner le depot (cree le dossier Appli_Web_Budget)
+git clone https://github.com/Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git Appli_Web_Budget
 cd Appli_Web_Budget
 
 # Creer la base de donnees PostgreSQL
@@ -138,8 +144,9 @@ sudo -u postgres psql -c "CREATE DATABASE budget_test OWNER budget_user;"
 
 # Configurer l'environnement
 cp .env.example .env
-# Editer .env : generer les cles secretes et definir DATABASE_URL
+# Editer .env : generer les cles secretes (voir A) et adapter les adresses
 # DATABASE_URL=postgresql://budget_user:votre_mot_de_passe@localhost:5432/budget
+# REDIS_URL=redis://localhost:6379/0
 
 # Creer et activer l'environnement virtuel
 python3 -m venv venv
@@ -159,23 +166,44 @@ flask create-admin
 flask run --debug --port 8080
 ```
 
+L'application est accessible sur **http://localhost:8080**.
+
 ---
 
-### C. Demo en ligne
+### C. Compte de demonstration
 
-| | |
-|---|---|
-| **URL** | https://example.com |
-| **Email** | demo@budget.fr |
-| **Mot de passe** | DemoBudget2026! |
+Pour explorer l'application avec des donnees deja remplies (comptes, transactions,
+budgets), creer le compte de demonstration :
 
-> Compte de demonstration avec donnees deterministes, reinitialisable via `backend/scripts/create_demo_user.py`.
+```bash
+# Avec Docker
+docker compose exec -e DEMO_PASSWORD='DemoBudget2026!' -w /app/backend app \
+    python3 scripts/create_demo_user.py
+
+# Sans Docker (depuis backend/, environnement virtuel actif)
+DEMO_PASSWORD='DemoBudget2026!' DATABASE_URL='postgresql://budget_user:votre_mot_de_passe@localhost:5432/budget' \
+    python3 scripts/create_demo_user.py
+```
+
+Se connecter ensuite avec **demo@budget.fr** / **DemoBudget2026!**. Relancer le script
+reinitialise le compte. Detail des donnees : `docs/README_DEMO.md`.
 
 ## Tests
 
+Les tests utilisent une base dediee, dont le nom doit contenir `test` : ils la vident
+a chaque execution.
+
 ```bash
+# Base de tests
+#   Avec Docker : docker compose exec db createdb -U budget_user budget_test
+#   Sans Docker : base budget_test creee a l'etape B
+
+# Dependances de test (environnement virtuel de l'etape B actif)
+pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+
 cd backend
-python3 -m pytest --tb=short -q        # 185 tests
+export DATABASE_URL_TEST=postgresql://budget_user:MOT_DE_PASSE@localhost:5432/budget_test
+python3 -m pytest --tb=short -q        # 488 tests
 pytest --cov=. tests/                   # Avec couverture de code
 pytest tests/unit/                      # Tests unitaires uniquement
 pytest tests/integration/               # Tests d'integration uniquement

@@ -59,9 +59,13 @@ Une fois connecte avec le compte demo, les pages suivantes contiennent des donne
 Si le compte demo doit etre reinitialise :
 
 ```bash
-# Depuis le serveur VPS
-docker cp backend/scripts/create_demo_user.py budget-app:/tmp/create_demo_user.py
-docker exec budget-app bash -c "cd /app/backend && python3 /tmp/create_demo_user.py"
+# Avec Docker (depuis la racine du projet)
+docker compose exec -e DEMO_PASSWORD='DemoBudget2026!' -w /app/backend app \
+    python3 scripts/create_demo_user.py
+
+# Sans Docker (depuis backend/, environnement virtuel actif)
+DEMO_PASSWORD='DemoBudget2026!' DATABASE_URL='postgresql://budget_user:votre_mot_de_passe@localhost:5432/budget' \
+    python3 scripts/create_demo_user.py
 ```
 
 Le script verifie si l'utilisateur existe deja avant de le creer.
