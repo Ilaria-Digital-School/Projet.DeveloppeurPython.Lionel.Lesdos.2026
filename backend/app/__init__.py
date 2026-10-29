@@ -397,9 +397,12 @@ def create_app(config_name="default"):
     # Enregistrement des commandes CLI
     from core.commands.account_commands import accounts_cli
     from core.commands.recurring_commands import recurring_cli
+    from modules.admin.commands import create_admin
 
     app.cli.add_command(recurring_cli)
     app.cli.add_command(accounts_cli)
+    # « flask create-admin » (documentée dans le README) n'était enregistrée nulle part
+    app.cli.add_command(create_admin, "create-admin")
 
     # Enregistrement des blueprints
     register_blueprints(app)
