@@ -14,7 +14,7 @@ Application web de gestion budgetaire personnelle permettant le suivi des compte
 - **Import/Export** : import de releves bancaires, export des donnees
 - **Authentification** : inscription, connexion securisee, gestion des sessions, roles et permissions, 2FA (TOTP et email)
 - **Administration** : interface d'administration pour la gestion des utilisateurs et le monitoring
-- **API REST v1** : 107 routes sous `/api/v1/` reparties en 14 modules
+- **API REST v1** : 116 routes sous `/api/v1/` reparties en 15 modules
 
 ## Technologies
 
@@ -34,11 +34,12 @@ Application web de gestion budgetaire personnelle permettant le suivi des compte
 ## Architecture
 
 ```
-Appli_Web_Budget/
+Projet.DeveloppeurPython.Lionel.Lesdos.2026/
 ├── backend/
-│   ├── api/v1/                # API REST v1 (107 routes, 14 modules)
+│   ├── api/v1/                # API REST v1 (116 routes, 15 modules)
 │   ├── app/                   # Factory Flask et configuration
 │   ├── core/
+│   │   ├── commands/          # Commandes CLI Flask
 │   │   ├── models/            # Modeles SQLAlchemy (User, Account, Transaction, Category, Budget...)
 │   │   ├── services/          # Logique metier (AccountService, TransactionService...)
 │   │   ├── schemas/           # Schemas Pydantic (validation API)
@@ -50,25 +51,26 @@ Appli_Web_Budget/
 │   │   ├── accounts/          # CRUD comptes bancaires
 │   │   ├── transactions/      # CRUD transactions + recurrentes
 │   │   ├── categories/        # CRUD categories
+│   │   ├── budgets/           # Budgets et suivi
 │   │   ├── dashboard/         # Tableaux de bord et analytics
 │   │   ├── reports/           # Generation de rapports
 │   │   ├── profile/           # Profil utilisateur et 2FA
-│   │   ├── settings/          # Parametres
-│   │   ├── notifications/     # Notifications
-│   │   ├── import_export/     # Import/export donnees
+│   │   ├── devices/           # Gestion des appareils
 │   │   ├── admin/             # Administration et monitoring
 │   │   └── ...
-│   ├── commands/              # Commandes CLI Flask
 │   ├── migrations/            # Migrations Alembic
 │   ├── scripts/               # Scripts utilitaires
 │   └── tests/                 # Tests unitaires, integration et fonctionnels
 ├── frontend/
 │   ├── templates/             # Templates Jinja2
 │   └── static/                # CSS, JavaScript, images
-├── docs/                      # Documentation technique et diagrammes UML
+├── docker/                    # Configuration Nginx, PostgreSQL et scripts du conteneur
+├── docs/                      # Documentation technique
+├── scripts/                   # Mise a jour, sauvegarde et restauration PostgreSQL
+├── setup.sh                   # Installation assistee
 ├── Dockerfile                 # Image Docker
 ├── docker-compose.yml         # Orchestration des services
-└── .github/workflows/         # CI/CD GitHub Actions
+└── .github/workflows/         # CI GitHub Actions (lint et tests)
 ```
 
 ## Installation
@@ -79,7 +81,7 @@ Appli_Web_Budget/
 
 ```bash
 git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
-cd Appli_Web_Budget
+cd Projet.DeveloppeurPython.Lionel.Lesdos.2026
 
 # Installation interactive (choix Docker ou local)
 ./setup.sh
@@ -100,13 +102,16 @@ Le script genere automatiquement les cles secretes, cree le `.env`, et configure
 ```bash
 # Cloner le depot
 git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
-cd Appli_Web_Budget
+cd Projet.DeveloppeurPython.Lionel.Lesdos.2026
 
 # Configurer l'environnement
 cp .env.example .env
 # Editer .env : generer SECRET_KEY, JWT_SECRET_KEY, WTF_CSRF_SECRET_KEY, SECURITY_PASSWORD_SALT
 # Definir POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 # DATABASE_URL=postgresql://USER:PASSWORD@db:5432/DB_NAME
+
+# Creer le reseau externe du reverse proxy (une seule fois)
+docker network create proxy_network
 
 # Lancer les services (PostgreSQL + Redis + App)
 docker compose up --build -d
@@ -124,12 +129,12 @@ L'application (Gunicorn) ecoute sur le port 5000 a l'interieur du reseau Docker 
 
 ### B. Sans Docker (developpement local)
 
-**Prerequis** : Python 3.10+, PostgreSQL 14+ installe localement
+**Prerequis** : Python 3.14, PostgreSQL 18 et Redis installes localement (versions de Python et PostgreSQL utilisees par Docker et la CI)
 
 ```bash
 # Cloner le depot
 git clone git@github.com:Ilaria-Digital-School/Projet.DeveloppeurPython.Lionel.Lesdos.2026.git
-cd Appli_Web_Budget
+cd Projet.DeveloppeurPython.Lionel.Lesdos.2026
 
 # Creer la base de donnees PostgreSQL
 sudo -u postgres psql -c "CREATE USER budget_user WITH PASSWORD 'votre_mot_de_passe';"
@@ -140,6 +145,7 @@ sudo -u postgres psql -c "CREATE DATABASE budget_test OWNER budget_user;"
 cp .env.example .env
 # Editer .env : generer les cles secretes et definir DATABASE_URL
 # DATABASE_URL=postgresql://budget_user:votre_mot_de_passe@localhost:5432/budget
+# REDIS_URL=redis://localhost:6379/0
 
 # Creer et activer l'environnement virtuel
 python3 -m venv venv
@@ -161,21 +167,20 @@ flask run --debug --port 8080
 
 ---
 
-### C. Demo en ligne
+### C. Compte de demonstration
 
 | | |
 |---|---|
-| **URL** | https://example.com |
 | **Email** | demo@budget.fr |
 | **Mot de passe** | DemoBudget2026! |
 
-> Compte de demonstration avec donnees deterministes, reinitialisable via `backend/scripts/create_demo_user.py`.
+> Compte de demonstration avec donnees fictives, reinitialisable via `backend/scripts/create_demo_user.py` (voir `docs/README_DEMO.md`).
 
 ## Tests
 
 ```bash
 cd backend
-python3 -m pytest --tb=short -q        # 185 tests
+python3 -m pytest --tb=short -q        # Tous les tests
 pytest --cov=. tests/                   # Avec couverture de code
 pytest tests/unit/                      # Tests unitaires uniquement
 pytest tests/integration/               # Tests d'integration uniquement

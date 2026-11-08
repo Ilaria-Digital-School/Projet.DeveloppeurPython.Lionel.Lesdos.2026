@@ -61,7 +61,7 @@ Si le compte demo doit etre reinitialise :
 ```bash
 # Depuis le serveur VPS
 docker cp backend/scripts/create_demo_user.py budget-app:/tmp/create_demo_user.py
-docker exec budget-app bash -c "cd /app/backend && python3 /tmp/create_demo_user.py"
+docker exec -e DEMO_PASSWORD='DemoBudget2026!' budget-app bash -c "cd /app/backend && python3 /tmp/create_demo_user.py"
 ```
 
-Le script verifie si l'utilisateur existe deja avant de le creer.
+Le script supprime le compte demo existant et ses donnees, puis le recree avec le mot de passe fourni dans `DEMO_PASSWORD`.
