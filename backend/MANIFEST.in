@@ -1,0 +1,10 @@
+include README.md
+include requirements.txt
+include .flaskenv
+exclude .env
+recursive-include backend/static *
+recursive-include backend/templates *
+recursive-include migrations *
+recursive-include tests *
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]

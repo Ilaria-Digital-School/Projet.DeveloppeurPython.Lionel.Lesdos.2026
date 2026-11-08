@@ -1,0 +1,22 @@
+{# Template pour l'erreur 401 - Authentification requise #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Authentification requise{% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title %}{% trans %}Authentification requise{% endtrans %}{% endset %}
+    {% set error_code = 401 %}
+    {% set error_icon = "fas fa-lock" %}
+    {%
+        set error_message %}
+            {% trans %}Vous devez être connecté pour accéder à cette page.{% endtrans %}
+        {% endset
+    %}
+    {{ super() }}
+
+    <div class="error-actions mt-3">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-sign-in-alt"></i> {% trans %}Se connecter{% endtrans %}
+        </a>
+    </div>
+{% endblock %}

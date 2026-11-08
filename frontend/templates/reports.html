@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Rapports - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Rapports et Analyses</h1>
+        <div class="space-x-3">
+            <button id="new-report-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">
+                <i class="fas fa-plus mr-2"></i>Nouveau Rapport
+            </button>
+            <div class="relative inline-block" id="export-dropdown-container">
+                <button id="export-dropdown-btn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200 inline-flex items-center">
+                    <i class="fas fa-download mr-2"></i>Exporter
+                    <i class="fas fa-caret-down ml-2"></i>
+                </button>
+                <div id="export-dropdown-menu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-700 ring-1 ring-black/5 z-50">
+                    <div class="py-1">
+                        <button data-format="pdf" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-file-pdf text-red-500 w-5 mr-2"></i>PDF
+                        </button>
+                        <button data-format="pdf-charts" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-chart-pie text-red-400 w-5 mr-2"></i>PDF avec graphiques
+                        </button>
+                        <hr class="my-1 border-gray-200 dark:border-gray-600">
+                        <button data-format="excel" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-file-excel text-green-500 w-5 mr-2"></i>Excel (.xlsx)
+                        </button>
+                        <button data-format="excel-charts" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-chart-bar text-green-400 w-5 mr-2"></i>Excel avec graphiques
+                        </button>
+                        <button data-format="csv" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-file-csv text-blue-500 w-5 mr-2"></i>CSV
+                        </button>
+                        <button data-format="json" class="export-option w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center">
+                            <i class="fas fa-file-code text-yellow-500 w-5 mr-2"></i>JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="report-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type de rapport</label>
+                <select id="report-type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="expenses">Dépenses par catégorie</option>
+                    <option value="income-vs-expenses">Revenus vs Dépenses</option>
+                    <option value="cashflow">Flux de trésorerie</option>
+                    <option value="custom">Personnalisé</option>
+                </select>
+            </div>
+            <div>
+                <label for="date-range" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Période</label>
+                <select id="date-range" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    <option value="current_month">Ce mois-ci</option>
+                    <option value="last_month">Le mois dernier</option>
+                    <option value="current_quarter">Ce trimestre</option>
+                    <option value="last_quarter">Le trimestre dernier</option>
+                    <option value="last_3_months">Les 3 derniers mois</option>
+                    <option value="last_6_months">Les 6 derniers mois</option>
+                    <option value="last_12_months">Les 12 derniers mois</option>
+                    <option value="current_year">Cette année</option>
+                    <option value="last_year">L'année dernière</option>
+                    <option value="all">Depuis le début</option>
+                    <option value="custom">Période personnalisée</option>
+                </select>
+            </div>
+            <div id="custom-date-range" class="hidden md:col-span-2 grid grid-cols-2 gap-4">
+                <div>
+                    <label for="start-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Du</label>
+                    <input type="date" id="start-date" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label for="end-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Au</label>
+                    <input type="date" id="end-date" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analyse ciblée : une ou plusieurs catégories, texte du libellé -->
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="relative">
+                <span id="filtre-categories-label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégories</span>
+                <button type="button" id="filtre-categories-bouton" aria-haspopup="true" aria-expanded="false" aria-labelledby="filtre-categories-label filtre-categories-resume"
+                        class="w-full flex justify-between items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-left text-gray-900 dark:text-white">
+                    <span id="filtre-categories-resume" class="truncate">Toutes les catégories</span>
+                    <i class="fas fa-chevron-down ml-2 text-gray-400"></i>
+                </button>
+                <div id="filtre-categories-panneau" class="hidden absolute z-20 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg p-2">
+                    <input type="search" id="filtre-categories-cherche" placeholder="Chercher une catégorie…"
+                           class="w-full mb-2 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    <div class="flex justify-between mb-2 text-xs">
+                        <button type="button" id="filtre-categories-aucune" class="text-blue-600 dark:text-blue-400 hover:underline">Toutes les catégories</button>
+                        <span id="filtre-categories-nombre" class="text-gray-500 dark:text-gray-400"></span>
+                    </div>
+                    <div id="filtre-categories-liste" class="space-y-1 text-sm"></div>
+                </div>
+            </div>
+            <div>
+                <label for="filtre-libelle" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Libellé contient</label>
+                <input type="search" id="filtre-libelle" maxlength="100" placeholder="Ex. : ALDI, FREE, loyer…"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            </div>
+        </div>
+        <p id="filtres-actifs" class="hidden mt-3 text-sm text-blue-700 dark:text-blue-300"></p>
+
+        <div class="mt-4 flex justify-end space-x-3">
+            <button id="apply-filters" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                <i class="fas fa-chart-bar mr-2"></i>Générer le rapport
+            </button>
+            <button id="reset-filters" class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 font-medium py-2 px-4 rounded-md transition duration-200">
+                <i class="fas fa-redo mr-1"></i>Réinitialiser
+            </button>
+        </div>
+    </div>
+
+    <!-- Indicateurs clés de la période -->
+    <div id="indicateurs" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Dépenses</p>
+            <p id="kpi-depenses" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">…</p>
+            <p id="kpi-depenses-detail" class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Revenus</p>
+            <p id="kpi-revenus" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">…</p>
+            <p id="kpi-revenus-detail" class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Taux d'épargne</p>
+            <p id="kpi-epargne" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">…</p>
+            <p id="kpi-epargne-detail" class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Dépense moyenne par jour</p>
+            <p id="kpi-moyenne" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">…</p>
+            <p id="kpi-moyenne-detail" class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words"></p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Plus grosse dépense</p>
+            <p id="kpi-max" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100 break-words">…</p>
+            <p id="kpi-max-detail" class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words"></p>
+        </div>
+        <a id="kpi-classer-lien" href="/transactions/?category=none" class="block bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:ring-2 hover:ring-blue-500">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Transactions sans catégorie</p>
+            <p id="kpi-classer" class="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">…</p>
+            <p class="mt-1 text-xs text-blue-600 dark:text-blue-400">Voir et classer <i class="fas fa-arrow-right ml-1"></i></p>
+        </a>
+    </div>
+
+    <!-- Graphiques et visualisations -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Graphique des dépenses par catégorie -->
+        <div id="card-expenses" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Dépenses par catégorie</h2>
+            <div class="h-96 flex items-center justify-center">
+                <canvas id="expensesByCategoryChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Graphique Revenus vs Dépenses -->
+        <div id="card-income-vs-expenses" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Revenus vs Dépenses</h2>
+            <div class="h-96 flex items-center justify-center">
+                <canvas id="incomeVsExpensesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Détail des dépenses par catégorie, comparé à la période précédente -->
+    <div id="detail-categories" class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Détail des dépenses par catégorie</h2>
+            <p id="detail-comparaison" class="text-sm text-gray-500 dark:text-gray-400"></p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Catégorie</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Montant</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Part</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Opérations</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Moyenne</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Période préc.</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Évolution</th>
+                    </tr>
+                </thead>
+                <tbody id="detail-categories-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Chargement…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Évolution mois par mois des dépenses par catégorie -->
+    <div id="evolution-mensuelle" class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Évolution mois par mois</h2>
+            <p id="evolution-sous-titre" class="text-sm text-gray-500 dark:text-gray-400"></p>
+        </div>
+        <div class="p-4 h-96">
+            <canvas id="evolutionChart"></canvas>
+        </div>
+        <div class="overflow-x-auto border-t border-gray-200 dark:border-gray-700">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead id="evolution-entete" class="bg-gray-50 dark:bg-gray-700"></thead>
+                <tbody id="evolution-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <tr><td class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Chargement…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+        <!-- Principaux destinataires -->
+        <div id="destinataires" class="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Principaux destinataires</h2>
+            <p id="destinataires-sous-titre" class="text-sm text-gray-500 dark:text-gray-400"></p>
+        </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Destinataire</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Montant</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Part</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Opérations</th>
+                            <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dernière</th>
+                        </tr>
+                    </thead>
+                    <tbody id="destinataires-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Chargement…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Suivi des budgets -->
+        <div id="suivi-budgets" class="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Suivi des budgets</h2>
+            <p id="budgets-sous-titre" class="text-sm text-gray-500 dark:text-gray-400"></p>
+        </div>
+            <div id="budgets-body" class="p-4 space-y-4">
+                <p class="text-center text-gray-500 dark:text-gray-400">Chargement…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aperçu du rapport sauvegardé -->
+    <div id="report-preview-section" class="mb-8">
+        <div id="report-preview"></div>
+    </div>
+
+    
+    <!-- Rapports enregistrés -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Mes rapports enregistrés</h2>
+            <button id="refresh-reports" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Nom
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Type
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Date de création
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Dernière mise à jour
+                        </th>
+                        <th scope="col" class="relative px-6 py-3">
+                            <span class="sr-only">Actions</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="saved-reports-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <!-- Les rapports enregistrés seront chargés dynamiquement ici -->
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                            Aucun rapport enregistré pour le moment.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de création de rapport -->
+<div id="report-modal" class="hidden fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <div class="flex justify-between items-center pb-3">
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Nouveau rapport</h3>
+            <button id="close-report-modal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <form id="report-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label for="report-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom du rapport</label>
+                    <input type="text" id="report-name" name="report_name" required 
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" 
+                           placeholder="Ex: Dépenses 2023">
+                </div>
+                
+                <div>
+                    <label for="report-type-modal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type de rapport</label>
+                    <select id="report-type-modal" name="report_type" required 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="expenses">Dépenses par catégorie</option>
+                        <option value="income-vs-expenses">Revenus vs Dépenses</option>
+                        <option value="cashflow">Flux de trésorerie</option>
+                        <option value="custom">Personnalisé</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="date-range-modal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Période</label>
+                    <select id="date-range-modal" name="date_range" required 
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                        <option value="current_month">Ce mois-ci</option>
+                        <option value="last_month">Le mois dernier</option>
+                        <option value="current_quarter">Ce trimestre</option>
+                        <option value="last_quarter">Le trimestre dernier</option>
+                        <option value="last_3_months">Les 3 derniers mois</option>
+                        <option value="last_6_months">Les 6 derniers mois</option>
+                        <option value="last_12_months">Les 12 derniers mois</option>
+                        <option value="current_year">Cette année</option>
+                        <option value="last_year">L'année dernière</option>
+                        <option value="all">Depuis le début</option>
+                        <option value="custom">Période personnalisée</option>
+                    </select>
+                </div>
+                
+                <div id="custom-date-range-modal" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+                    <div>
+                        <label for="start-date-modal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Du</label>
+                        <input type="date" id="start-date-modal" name="start_date" 
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+                    <div>
+                        <label for="end-date-modal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Au</label>
+                        <input type="date" id="end-date-modal" name="end_date" 
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Options</label>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input id="group-by-category" name="group_by_category" type="checkbox" checked 
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-blue-400">
+                            <label for="group-by-category" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                                Grouper par catégorie
+                            </label>
+                        </div>
+                        <div class="flex items-center">
+                            <input id="include-subcategories" name="include_subcategories" type="checkbox" checked 
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-blue-400">
+                            <label for="include-subcategories" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                                Inclure les sous-catégories
+                            </label>
+                        </div>
+                        <div class="flex items-center">
+                            <input id="save-as-template" name="save_as_template" type="checkbox" 
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-blue-400">
+                            <label for="save-as-template" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                                Enregistrer comme modèle
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" id="cancel-report" 
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Annuler
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <i class="fas fa-chart-bar mr-2"></i>Générer le rapport
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/reports.js') }}?v=20261105"></script>
+{% endblock %}

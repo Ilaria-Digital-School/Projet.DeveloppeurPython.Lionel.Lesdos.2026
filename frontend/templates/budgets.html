@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Budgets - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+  <!-- En-tête -->
+  <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Budgets</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Suivi de la période en cours, projection et historique</p>
+    </div>
+    <div class="flex gap-3">
+      <a href="/api/v1/budgets/export?format=csv"
+         class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 font-medium py-2 px-4 rounded-lg transition duration-200">
+        <i class="fas fa-download mr-2"></i>Exporter
+      </a>
+      <button id="new-budget-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">
+        <i class="fas fa-plus mr-2"></i>Nouveau budget
+      </button>
+    </div>
+  </div>
+
+  <div id="alert-container"></div>
+
+  <!-- Indicateurs globaux (budgets actifs) -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Budgété</p>
+      <p id="kpi-budgeted" class="text-2xl font-bold text-gray-900 dark:text-white">–</p>
+      <p class="text-xs text-gray-400">report inclus</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Dépensé</p>
+      <p id="kpi-spent" class="text-2xl font-bold text-gray-900 dark:text-white">–</p>
+      <p id="kpi-spent-pct" class="text-xs text-gray-400"></p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Restant</p>
+      <p id="kpi-remaining" class="text-2xl font-bold text-gray-900 dark:text-white">–</p>
+      <p class="text-xs text-gray-400">sur la période en cours</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Projection fin de période</p>
+      <p id="kpi-projected" class="text-2xl font-bold text-gray-900 dark:text-white">–</p>
+      <p id="kpi-projected-hint" class="text-xs text-gray-400">d'après vos habitudes</p>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="flex flex-wrap gap-2 mb-4" id="budget-filters" role="group" aria-label="Filtrer les budgets">
+    <button data-filter="all" class="budget-filter px-3 py-1 rounded-full text-sm border">Tous <span data-count="all"></span></button>
+    <button data-filter="over" class="budget-filter px-3 py-1 rounded-full text-sm border">Dépassés <span data-count="over"></span></button>
+    <button data-filter="risk" class="budget-filter px-3 py-1 rounded-full text-sm border">À surveiller <span data-count="risk"></span></button>
+    <button data-filter="ok" class="budget-filter px-3 py-1 rounded-full text-sm border">En bonne voie <span data-count="ok"></span></button>
+    <button data-filter="inactive" class="budget-filter px-3 py-1 rounded-full text-sm border">Inactifs <span data-count="inactive"></span></button>
+  </div>
+
+  <!-- Cartes budgets -->
+  <div id="budgets-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+    <div class="col-span-full text-center text-gray-500 dark:text-gray-400 py-12">
+      <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+      <p>Chargement des budgets...</p>
+    </div>
+  </div>
+
+  <!-- Alertes & seuil -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white"><i class="fas fa-sliders-h mr-2"></i>Seuil d'alerte par défaut</h2>
+      <div class="flex items-center gap-3 mb-3">
+        <input type="range" id="default-threshold" min="50" max="100" value="90" class="flex-1 dark:bg-gray-700 dark:text-white dark:border-gray-600" aria-label="Seuil d'alerte par défaut">
+        <span id="threshold-value" class="text-sm font-medium w-12 text-gray-800 dark:text-white">90%</span>
+      </div>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Appliqué à tous vos budgets. Une alerte est envoyée au seuil puis au dépassement.
+        <a href="/profile/" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Configurer les notifications →</a>
+      </p>
+      <button id="save-threshold" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition duration-200">
+        Enregistrer
+      </button>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white"><i class="fas fa-bell mr-2 text-orange-500"></i>Alertes non lues</h2>
+      <div id="active-alerts" class="space-y-3 max-h-72 overflow-y-auto">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Chargement...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal formulaire (création / modification) -->
+<div id="budget-form-modal" class="fixed inset-0 bg-gray-600/50 hidden z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="budget-form-title">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6">
+      <div class="flex justify-between items-center pb-3">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white" id="budget-form-title">Nouveau budget</h3>
+        <button type="button" class="close-form text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white" aria-label="Fermer">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      <form id="budget-form" class="space-y-4">
+        <input type="hidden" id="budget-id" value="">
+        <div>
+          <label for="budget-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Catégorie</label>
+          <select id="budget-category" name="category_id" required
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white">
+            <option value="">Sélectionnez une catégorie</option>
+          </select>
+        </div>
+        <div>
+          <label for="budget-amount" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Montant (€)</label>
+          <input type="number" name="amount" id="budget-amount" step="0.01" min="0.01" required
+                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                 placeholder="0.00">
+          <p id="budget-suggestion" class="hidden text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
+        </div>
+        <div>
+          <label for="budget-period" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Période</label>
+          <select id="budget-period" name="period"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white">
+            <option value="monthly">Mensuel</option>
+            <option value="yearly">Annuel</option>
+            <option value="custom">Personnalisé</option>
+          </select>
+        </div>
+        <div id="custom-dates" class="hidden grid grid-cols-2 gap-4">
+          <div>
+            <label for="budget-start-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Début</label>
+            <input type="date" name="start_date" id="budget-start-date"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white">
+          </div>
+          <div>
+            <label for="budget-end-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fin</label>
+            <input type="date" name="end_date" id="budget-end-date"
+                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white">
+          </div>
+        </div>
+        <div>
+          <label for="budget-threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seuil d'alerte (%)</label>
+          <input type="number" name="notification_threshold" id="budget-threshold" min="1" max="100" value="90"
+                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white">
+        </div>
+        <div id="rollover-field" class="flex items-start gap-3">
+          <input type="checkbox" id="budget-rollover" name="report_actif" class="mt-1 rounded border-gray-300 dark:border-gray-600">
+          <label for="budget-rollover" class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="font-medium">Reporter le reste</span><br>
+            <span class="text-gray-500 dark:text-gray-400">Ce qui n'est pas dépensé sur une période s'ajoute à la suivante (un dépassement n'est pas reporté).</span>
+          </label>
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button type="button" class="close-form px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
+            Annuler
+          </button>
+          <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+            Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal détail : prévu vs réel + historique -->
+<div id="budget-detail-modal" class="fixed inset-0 bg-gray-600/50 hidden z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="budget-detail-title">
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl p-6">
+      <div class="flex justify-between items-center pb-4">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white" id="budget-detail-title">Budget</h3>
+        <button type="button" class="close-detail text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white" aria-label="Fermer">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <div class="flex justify-between items-center mb-2">
+        <h4 class="font-semibold text-gray-800 dark:text-gray-200">Prévu vs réel</h4>
+        <select id="periods-count" class="text-sm pl-2 pr-8 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white" aria-label="Nombre de périodes">
+          <option value="6">6 périodes</option>
+          <option value="12">12 périodes</option>
+          <option value="24">24 périodes</option>
+        </select>
+      </div>
+      <div class="relative h-64 mb-2">
+        <canvas id="periods-chart"></canvas>
+      </div>
+      <p id="periods-summary" class="text-sm text-gray-600 dark:text-gray-400 mb-6"></p>
+
+      <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-2">Historique des modifications</h4>
+      <ul id="budget-history" class="divide-y divide-gray-200 dark:divide-gray-700 text-sm max-h-60 overflow-y-auto"></ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/budgets.js') }}?v=20261105"></script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{# Template pour l'erreur 400 - Requête incorrecte #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Requête incorrecte{% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title = "Requête incorrecte" %}
+    {% set error_code = 400 %}
+    {% set error_icon = "fas fa-exclamation-circle" %}
+    {% 
+        set error_message %}
+            {% trans %}La requête envoyée au serveur est incorrecte ou incomplète.{% endtrans %}
+            <br>
+            {% trans %}Veuillez vérifier les informations et réessayer.{% endtrans %}
+        {% endset 
+    %}
+    {{ super() }}
+{% endblock %}

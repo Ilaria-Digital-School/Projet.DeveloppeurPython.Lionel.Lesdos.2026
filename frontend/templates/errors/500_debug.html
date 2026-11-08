@@ -1,0 +1,23 @@
+{# Template pour l'erreur 500 en mode debug - Détails techniques affichés #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Erreur serveur (debug){% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title %}{% trans %}Erreur serveur (mode debug){% endtrans %}{% endset %}
+    {% set error_code = 500 %}
+    {% set error_icon = "fas fa-bug" %}
+    {%
+        set error_message %}
+            {% trans %}Une erreur interne du serveur s'est produite.{% endtrans %}
+            <br>
+            <small>{% trans %}Les détails techniques ci-dessous ne sont visibles qu'en mode debug.{% endtrans %}</small>
+        {% endset
+    %}
+    {{ super() }}
+
+    <div class="error-details mt-4">
+        <h5>{% trans %}Détails techniques{% endtrans %}</h5>
+        <pre><code>{{ error }}</code></pre>
+    </div>
+{% endblock %}

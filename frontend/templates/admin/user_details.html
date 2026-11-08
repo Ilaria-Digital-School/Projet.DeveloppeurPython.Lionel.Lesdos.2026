@@ -1,0 +1,750 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Détails Utilisateur {{ user.username }}{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+
+  <!-- En-tête -->
+  <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl p-6 mb-8">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold flex items-center">
+          <i class="fas fa-user-circle mr-3"></i> Détails Utilisateur
+        </h1>
+        <p class="text-indigo-100 mt-1">Informations complètes de {{ user.username }}</p>
+      </div>
+      <a href="{{ url_for('admin.users_management') }}"
+         class="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+        <i class="fas fa-arrow-left"></i> Retour à la liste
+      </a>
+    </div>
+  </div>
+
+  <div id="userDetailsContainer" data-user-id="{{ user.id }}"
+       class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Colonne gauche : carte principale -->
+    <div class="lg:col-span-1">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 text-center">
+        {% if user.avatar_url %}
+        <img src="{{ user.avatar_url }}" alt="Avatar de {{ user.username }}"
+             class="w-28 h-28 rounded-full object-cover mx-auto mb-4">
+        {% else %}
+        <div class="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-5xl font-bold mx-auto mb-4">
+          {{ user.username[0].upper() }}
+        </div>
+        {% endif %}
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ user.username }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ user.email }}</p>
+
+        <div class="mb-4">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide
+                       {{ 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' if user.is_active else 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' }}">
+            {{ 'Actif' if user.is_active else 'Inactif' }}
+          </span>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 mb-4">
+          {% for role in user.roles %}
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold
+                       {{ 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' if role == 'admin' else 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-800 dark:text-cyan-200' }}">
+            {{ role.title() }}
+          </span>
+          {% endfor %}
+        </div>
+
+        <div class="mb-6 text-sm font-medium {{ 'text-green-600 dark:text-green-400' if user.two_factor_enabled else 'text-gray-500 dark:text-gray-400' }}">
+          {{ '🔐' if user.two_factor_enabled else '🔓' }}
+          2FA {{ 'Activée' if user.two_factor_enabled else 'Désactivée' }}
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="flex flex-col gap-2">
+          <button id="btn-toggle-top"
+                  class="w-full {{ 'bg-green-600 hover:bg-green-700' if not user.is_active else 'bg-red-600 hover:bg-red-700' }} text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            {{ '✅ Activer' if not user.is_active else '❌ Désactiver' }}
+          </button>
+
+          {% if user.two_factor_enabled %}
+          <button id="btn-reset-2fa"
+                  class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            🔄 Réinitialiser 2FA
+          </button>
+          {% endif %}
+
+          <button id="btn-send-notification"
+                  class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            📧 Envoyer Notification
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonne droite -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Statistiques -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 text-center">
+          <div class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ user.accounts_count }}</div>
+          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Comptes</div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 text-center">
+          <div class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ user.transactions_count }}</div>
+          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Transactions</div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 text-center">
+          <div class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ "%.0f"|format(user.total_volume) }}€</div>
+          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">Volume Total</div>
+        </div>
+      </div>
+
+      <!-- Informations Détaillées -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">📋 Informations Détaillées</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Nom Complet</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {{ (user.first_name + ' ' + user.last_name) if user.first_name and user.last_name else 'Non renseigné' }}
+            </div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Email Vérifié</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ '✅ Oui' if user.email_verified else '❌ Non' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Date d'Inscription</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.created_at }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Dernière Connexion</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.last_login }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Nombre de Connexions</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.login_count }} fois</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Authentification 2FA</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ 'Configurée et active' if user.two_factor_enabled else 'Non configurée' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Téléphone</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.phone or 'Non renseigné' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Ville</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.city or 'Non renseigné' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Pays</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.country or 'Non renseigné' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Langue</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.language or 'Non renseigné' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Fuseau horaire</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.timezone or 'Non renseigné' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sécurité -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">🛡️ Sécurité</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Tentatives de connexion échouées</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.login_attempts }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Compte verrouillé</div>
+            <div class="text-sm mt-1">
+              {% if user.is_locked %}
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200">Verrouillé</span>
+              {% else %}
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200">Non</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Dernière IP de connexion</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.last_login_ip or 'N/A' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">IP de connexion actuelle</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.current_login_ip or 'N/A' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">2FA activée le</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.two_factor_enabled_at or 'N/A' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cycle de vie -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">🗓️ Cycle de vie</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Dernière mise à jour</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.updated_at }}</div>
+          </div>
+          {% if not user.is_active %}
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Désactivé le</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.deactivated_at or 'N/A' }}</div>
+          </div>
+          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border-l-4 border-indigo-500">
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">Raison de désactivation</div>
+            <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ user.deactivation_reason or 'Non renseignée' }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Activité Récente -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">📈 Activité Récente</h3>
+        <div id="recentActivity">
+          <div class="text-center py-3 text-gray-500 dark:text-gray-400">Chargement de l'activité…</div>
+        </div>
+      </div>
+
+      <!-- Données financières -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">💰 Données financières</h3>
+        <div class="flex gap-2 mb-4">
+          <button type="button" id="tabAccounts"
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 bg-blue-600 text-white">
+            Comptes
+          </button>
+          <button type="button" id="tabTransactions"
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">
+            Transactions
+          </button>
+        </div>
+        <div id="accountsPanel">
+          <div class="text-center py-3 text-gray-500 dark:text-gray-400">Chargement des comptes…</div>
+        </div>
+        <div id="transactionsPanel" class="hidden">
+          <div id="transactionsContent"></div>
+          <div id="txPagination" class="flex justify-between items-center mt-3"></div>
+        </div>
+      </div>
+
+      <!-- Actions Administratives -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">⚙️ Actions Administratives</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button id="btn-export"
+                  class="inline-flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            <i class="fas fa-download"></i> Exporter Données
+          </button>
+          <button id="btn-sessions"
+                  class="inline-flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            <i class="fas fa-history"></i> Sessions Actives
+          </button>
+          <button id="btn-reset-password"
+                  class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            <i class="fas fa-key"></i> Reset Mot de Passe
+          </button>
+          <button id="btn-toggle-user"
+                  data-activate="{{ 'false' if user.is_active else 'true' }}"
+                  class="inline-flex items-center justify-center gap-2 {{ 'bg-amber-500 hover:bg-amber-600' if user.is_active else 'bg-green-600 hover:bg-green-700' }} text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+            {% if user.is_active %}
+            <i class="fas fa-user-slash"></i> Désactiver Utilisateur
+            {% else %}
+            <i class="fas fa-user-check"></i> Activer Utilisateur
+            {% endif %}
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmation -->
+<div id="confirmModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+  <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+    <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Confirmer l'action</h3>
+    <div id="confirmModalBody" class="mb-6 text-gray-600 dark:text-gray-300 whitespace-pre-line"></div>
+    <div class="flex justify-end gap-3">
+      <button type="button" id="cancelConfirmModal"
+              class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-sm font-medium">Annuler</button>
+      <button type="button" id="confirmButton"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Confirmer</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Données utilisateur injectées côté serveur (évite les onclick inline, bloqués par la CSP)
+const USER = {
+  id: {{ user.id }},
+  username: {{ user.username|tojson }},
+  isActive: {{ 'true' if user.is_active else 'false' }}
+};
+
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+// Classes utilitaires réutilisées pour le contenu injecté
+const CELL = 'px-3 py-2 text-left';
+const HEAD_CELL = 'px-3 py-2 text-left font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700';
+const ROW = 'border-b border-gray-100 dark:border-gray-700';
+const BTN_SECONDARY = 'px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200';
+
+// === POST d'action admin générique ===
+function postAction(url, okMessage, koMessage, reloadDelay) {
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        showAlert('success', data.message || okMessage);
+        if (reloadDelay) {
+          setTimeout(() => window.location.reload(), reloadDelay);
+        }
+      } else {
+        showAlert('error', data.message || koMessage);
+      }
+    })
+    .catch(error => {
+      console.error('Erreur:', error);
+      showAlert('error', 'Erreur lors de la communication avec le serveur');
+    });
+}
+
+function toggleUserStatus() {
+  const action = USER.isActive ? 'désactiver' : 'activer';
+  showConfirmModal(`Êtes-vous sûr de vouloir ${action} l'utilisateur "${USER.username}" ?`, () => {
+    postAction(`/api/v1/admin/users/${USER.id}/toggle`, 'Statut mis à jour',
+      'Erreur lors de la modification du statut', 1500);
+  });
+}
+
+function reset2FA() {
+  showConfirmModal(`Êtes-vous sûr de vouloir réinitialiser la 2FA pour l'utilisateur "${USER.username}" ?`, () => {
+    postAction(`/api/v1/admin/users/${USER.id}/reset-2fa`, '2FA réinitialisée',
+      'Erreur lors de la réinitialisation', 3000);
+  });
+}
+
+function resetPassword() {
+  showConfirmModal('⚠️ Êtes-vous sûr de vouloir réinitialiser le mot de passe de cet utilisateur ?\n\nUn nouveau mot de passe temporaire sera généré.', () => {
+    postAction(`/api/v1/admin/users/${USER.id}/reset-password`, 'Mot de passe réinitialisé',
+      'Erreur lors de la réinitialisation du mot de passe', 0);
+  });
+}
+
+function toggleUser(activate) {
+  const action = activate ? 'activer' : 'désactiver';
+  const detail = activate
+    ? 'L\'utilisateur pourra à nouveau se connecter.'
+    : 'L\'utilisateur ne pourra plus se connecter à l\'application.';
+  showConfirmModal(`⚠️ Êtes-vous sûr de vouloir ${action} cet utilisateur ?\n\n${detail}`, () => {
+    postAction(`/api/v1/admin/users/${USER.id}/toggle`, 'Statut mis à jour',
+      `Erreur lors de la ${activate ? 'activation' : 'désactivation'} de l'utilisateur`, 2000);
+  });
+}
+
+// === Activité récente et données financières (rendu via textContent uniquement, anti-XSS) ===
+
+function setLoading(container, text) {
+  container.replaceChildren();
+  const div = document.createElement('div');
+  div.className = 'text-center py-3 text-gray-500 dark:text-gray-400';
+  div.textContent = text;
+  container.appendChild(div);
+}
+
+function setError(container, text) {
+  container.replaceChildren();
+  const div = document.createElement('div');
+  div.className = 'text-center py-3 text-red-600 dark:text-red-400';
+  div.textContent = text;
+  container.appendChild(div);
+}
+
+const ACTIVITY_ICONS = {
+  login: { icon: '🔐', color: '#3182ce' },
+  transaction: { icon: '💳', color: '#2f855a' },
+  notification: { icon: '🔔', color: '#d69e2e' }
+};
+
+function loadRecentActivity(userId) {
+  const activityDiv = document.getElementById('recentActivity');
+  setLoading(activityDiv, 'Chargement…');
+
+  fetch(`/api/v1/admin/users/${userId}/activity?limit=20`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.status !== 'success') {
+        setError(activityDiv, data.message || 'Erreur lors du chargement de l\'activité');
+        return;
+      }
+      activityDiv.replaceChildren();
+      if (!data.activity || data.activity.length === 0) {
+        setLoading(activityDiv, 'Aucune activité récente');
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'divide-y divide-gray-200 dark:divide-gray-700';
+      data.activity.forEach(item => {
+        const meta = ACTIVITY_ICONS[item.type] || { icon: '📌', color: '#666' };
+        const entry = document.createElement('div');
+        entry.className = 'py-3';
+
+        const header = document.createElement('div');
+        header.className = 'flex w-full justify-between';
+
+        const title = document.createElement('h6');
+        title.className = 'mb-1 font-medium';
+        title.style.color = meta.color;
+        let titleText = `${meta.icon} ${item.title || ''}`;
+        if (item.type === 'transaction' && item.transaction_type) {
+          titleText += ` (${item.transaction_type})`;
+        }
+        title.textContent = titleText;
+
+        const dateSmall = document.createElement('small');
+        dateSmall.className = 'text-gray-500 dark:text-gray-400';
+        dateSmall.textContent = item.date_display || '';
+
+        header.appendChild(title);
+        header.appendChild(dateSmall);
+        entry.appendChild(header);
+
+        if (item.details) {
+          const details = document.createElement('p');
+          details.className = 'mb-1 text-sm text-gray-600 dark:text-gray-300';
+          details.textContent = item.details;
+          entry.appendChild(details);
+        }
+        if (item.type === 'login' && item.success === false) {
+          const failure = document.createElement('small');
+          failure.className = 'text-red-600 dark:text-red-400';
+          failure.textContent = item.failure_reason
+            ? `Échec : ${item.failure_reason}`
+            : 'Échec de connexion';
+          entry.appendChild(failure);
+        }
+        list.appendChild(entry);
+      });
+      activityDiv.appendChild(list);
+    })
+    .catch(error => {
+      console.error('Erreur:', error);
+      setError(activityDiv, 'Erreur lors de la communication avec le serveur');
+    });
+}
+
+let accountsLoaded = false;
+function loadAccounts(userId) {
+  if (accountsLoaded) return;
+  const panel = document.getElementById('accountsPanel');
+  setLoading(panel, 'Chargement des comptes…');
+
+  fetch(`/api/v1/admin/users/${userId}/accounts`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.status !== 'success') {
+        setError(panel, data.message || 'Erreur lors du chargement des comptes');
+        return;
+      }
+      accountsLoaded = true;
+      panel.replaceChildren();
+      if (!data.accounts || data.accounts.length === 0) {
+        setLoading(panel, 'Aucun compte');
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'w-full text-sm';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      ['Nom', 'Type', 'Solde', 'Actif'].forEach(label => {
+        const th = document.createElement('th');
+        th.className = HEAD_CELL;
+        th.textContent = label;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      data.accounts.forEach(acc => {
+        const row = document.createElement('tr');
+        row.className = ROW;
+
+        const nameCell = document.createElement('td');
+        nameCell.className = CELL;
+        nameCell.textContent = acc.is_primary ? `${acc.name} ⭐` : acc.name;
+        row.appendChild(nameCell);
+
+        const typeCell = document.createElement('td');
+        typeCell.className = CELL;
+        typeCell.textContent = acc.account_type || '';
+        row.appendChild(typeCell);
+
+        const balanceCell = document.createElement('td');
+        balanceCell.className = CELL + ' font-semibold';
+        balanceCell.textContent = `${acc.balance.toFixed(2)} ${acc.currency}`;
+        balanceCell.style.color = acc.balance < 0 ? '#c53030' : '#2f855a';
+        row.appendChild(balanceCell);
+
+        const activeCell = document.createElement('td');
+        activeCell.className = CELL;
+        activeCell.textContent = acc.is_active ? 'Oui' : 'Non';
+        row.appendChild(activeCell);
+
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      panel.appendChild(table);
+    })
+    .catch(error => {
+      console.error('Erreur:', error);
+      setError(panel, 'Erreur lors de la communication avec le serveur');
+    });
+}
+
+function loadTransactions(userId, page) {
+  const content = document.getElementById('transactionsContent');
+  const paginationDiv = document.getElementById('txPagination');
+  setLoading(content, 'Chargement des transactions…');
+  paginationDiv.replaceChildren();
+
+  fetch(`/api/v1/admin/users/${userId}/transactions?page=${page}&per_page=20`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.status !== 'success') {
+        setError(content, data.message || 'Erreur lors du chargement des transactions');
+        return;
+      }
+      content.replaceChildren();
+      if (!data.data || data.data.length === 0) {
+        setLoading(content, 'Aucune transaction');
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'w-full text-sm';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      ['Date', 'Libellé', 'Montant', 'Type', 'Compte'].forEach(label => {
+        const th = document.createElement('th');
+        th.className = HEAD_CELL;
+        th.textContent = label;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      data.data.forEach(tx => {
+        const row = document.createElement('tr');
+        row.className = ROW;
+
+        const dateCell = document.createElement('td');
+        dateCell.className = CELL;
+        dateCell.textContent = tx.date || '';
+        row.appendChild(dateCell);
+
+        const libelleCell = document.createElement('td');
+        libelleCell.className = CELL;
+        libelleCell.textContent = tx.libelle || '';
+        row.appendChild(libelleCell);
+
+        const montantCell = document.createElement('td');
+        montantCell.className = CELL + ' font-semibold';
+        const sign = tx.montant > 0 ? '+' : '';
+        montantCell.textContent = `${sign}${tx.montant.toFixed(2)} ${tx.devise}`;
+        montantCell.style.color = tx.montant < 0 ? '#c53030' : '#2f855a';
+        row.appendChild(montantCell);
+
+        const typeCell = document.createElement('td');
+        typeCell.className = CELL;
+        typeCell.textContent = tx.type_display || tx.type || '';
+        row.appendChild(typeCell);
+
+        const accountCell = document.createElement('td');
+        accountCell.className = CELL;
+        accountCell.textContent = tx.account_name || 'N/A';
+        row.appendChild(accountCell);
+
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      content.appendChild(table);
+
+      // Pagination
+      const pagination = data.pagination || {};
+      const totalPages = pagination.pages || 1;
+      const currentPage = pagination.page || page;
+
+      const prevButton = document.createElement('button');
+      prevButton.type = 'button';
+      prevButton.className = BTN_SECONDARY;
+      prevButton.textContent = '← Précédent';
+      prevButton.disabled = currentPage <= 1;
+      prevButton.addEventListener('click', () => loadTransactions(userId, currentPage - 1));
+
+      const pageInfo = document.createElement('span');
+      pageInfo.className = 'text-sm text-gray-500 dark:text-gray-400';
+      pageInfo.textContent = `Page ${currentPage} / ${totalPages} (${pagination.total || 0} transactions)`;
+
+      const nextButton = document.createElement('button');
+      nextButton.type = 'button';
+      nextButton.className = BTN_SECONDARY;
+      nextButton.textContent = 'Suivant →';
+      nextButton.disabled = currentPage >= totalPages;
+      nextButton.addEventListener('click', () => loadTransactions(userId, currentPage + 1));
+
+      paginationDiv.appendChild(prevButton);
+      paginationDiv.appendChild(pageInfo);
+      paginationDiv.appendChild(nextButton);
+    })
+    .catch(error => {
+      console.error('Erreur:', error);
+      setError(content, 'Erreur lors de la communication avec le serveur');
+    });
+}
+
+function sendNotification() {
+  showAlert('info', 'Fonctionnalité en développement');
+}
+
+function exportUserData() {
+  showAlert('info', 'Export des données en cours...');
+}
+
+function viewUserSessions() {
+  showAlert('info', 'Fonctionnalité en développement');
+}
+
+// === Modal de confirmation ===
+function showConfirmModal(message, onConfirm) {
+  document.getElementById('confirmModalBody').textContent = message;
+  const confirmButton = document.getElementById('confirmButton');
+  const newConfirmButton = confirmButton.cloneNode(true);
+  confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+  newConfirmButton.addEventListener('click', () => {
+    hideConfirmModal();
+    onConfirm();
+  });
+  document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+function hideConfirmModal() {
+  document.getElementById('confirmModal').classList.add('hidden');
+}
+
+// === Alertes toast ===
+function showAlert(type, message) {
+  const alertDiv = document.createElement('div');
+  const alertStyles = {
+    success: 'background-color: #f0fff4; border-left: 4px solid #68d391; color: #2f855a;',
+    error: 'background-color: #fed7d7; border-left: 4px solid #fc8181; color: #c53030;',
+    info: 'background-color: #ebf8ff; border-left: 4px solid #63b3ed; color: #3182ce;',
+    warning: 'background-color: #fffff0; border-left: 4px solid #f6e05e; color: #d69e2e;'
+  };
+  alertDiv.style.cssText = `
+    position: fixed; top: 20px; right: 20px; z-index: 9999;
+    padding: 16px; max-width: 450px; border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    white-space: pre-line; font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px; line-height: 1.4;
+    ${alertStyles[type] || alertStyles.error}
+  `;
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display: flex; align-items: flex-start;';
+  const text = document.createElement('div');
+  text.style.cssText = 'flex: 1; margin-right: 12px;';
+  text.textContent = message;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.style.cssText = 'background: none; border: none; font-size: 18px; font-weight: bold; cursor: pointer; opacity: 0.7; padding: 0;';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => alertDiv.remove());
+  wrapper.appendChild(text);
+  wrapper.appendChild(closeBtn);
+  alertDiv.appendChild(wrapper);
+  document.body.appendChild(alertDiv);
+  setTimeout(() => {
+    if (alertDiv.parentNode) {
+      alertDiv.remove();
+    }
+  }, 8000);
+}
+
+// === Initialisation ===
+document.addEventListener('DOMContentLoaded', function() {
+  const userId = USER.id;
+
+  loadRecentActivity(userId);
+  loadAccounts(userId);
+
+  // Boutons d'action (addEventListener : compatible CSP stricte)
+  document.getElementById('btn-toggle-top')?.addEventListener('click', toggleUserStatus);
+  document.getElementById('btn-reset-2fa')?.addEventListener('click', reset2FA);
+  document.getElementById('btn-send-notification')?.addEventListener('click', sendNotification);
+  document.getElementById('btn-export')?.addEventListener('click', exportUserData);
+  document.getElementById('btn-sessions')?.addEventListener('click', viewUserSessions);
+  document.getElementById('btn-reset-password')?.addEventListener('click', resetPassword);
+  document.getElementById('btn-toggle-user')?.addEventListener('click', function() {
+    toggleUser(this.dataset.activate === 'true');
+  });
+  document.getElementById('cancelConfirmModal')?.addEventListener('click', hideConfirmModal);
+  document.getElementById('confirmModal')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) hideConfirmModal();
+  });
+
+  // Onglets Données financières
+  const tabAccounts = document.getElementById('tabAccounts');
+  const tabTransactions = document.getElementById('tabTransactions');
+  const accountsPanel = document.getElementById('accountsPanel');
+  const transactionsPanel = document.getElementById('transactionsPanel');
+  let transactionsLoaded = false;
+
+  const ACTIVE = ['bg-blue-600', 'text-white'];
+  const INACTIVE = ['bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'hover:bg-gray-300', 'dark:hover:bg-gray-600'];
+
+  function setActiveTab(activeBtn, inactiveBtn) {
+    activeBtn.classList.remove(...INACTIVE);
+    activeBtn.classList.add(...ACTIVE);
+    inactiveBtn.classList.remove(...ACTIVE);
+    inactiveBtn.classList.add(...INACTIVE);
+  }
+
+  tabAccounts.addEventListener('click', () => {
+    accountsPanel.classList.remove('hidden');
+    transactionsPanel.classList.add('hidden');
+    setActiveTab(tabAccounts, tabTransactions);
+    loadAccounts(userId);
+  });
+
+  tabTransactions.addEventListener('click', () => {
+    transactionsPanel.classList.remove('hidden');
+    accountsPanel.classList.add('hidden');
+    setActiveTab(tabTransactions, tabAccounts);
+    if (!transactionsLoaded) {
+      transactionsLoaded = true;
+      loadTransactions(userId, 1);
+    }
+  });
+});
+</script>
+{% endblock %}

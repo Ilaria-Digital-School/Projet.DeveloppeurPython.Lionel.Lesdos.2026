@@ -1,0 +1,116 @@
+/*
+ * Mode sombre des classes génériques définies dans les blocs <style> des
+ * templates (fenêtres, champs, boutons secondaires). Les règles .dark
+ * l'emportent par spécificité, quel que soit l'ordre de chargement.
+ */
+
+/* Éléments natifs du navigateur (barres de défilement, champs, listes) en sombre */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .modal-content {
+  background-color: #1F2937;
+  color: #E5E7EB;
+}
+
+.dark .modal-header,
+.dark .modal-footer {
+  border-color: #374151;
+}
+
+.dark .modal-title {
+  color: #F9FAFB;
+}
+
+.dark .close:hover {
+  color: #F9FAFB;
+}
+
+.dark .btn-secondary {
+  background-color: #374151;
+  color: #E5E7EB;
+  border-color: #4B5563;
+}
+
+.dark .btn-secondary:hover {
+  background-color: #4B5563;
+}
+
+.dark .form-control {
+  color: #F9FAFB;
+  background-color: #374151;
+  border-color: #4B5563;
+}
+
+.dark .form-group label {
+  color: #D1D5DB;
+}
+
+.dark .transaction-icon-container {
+  background-color: #374151;
+}
+
+/* Calendrier Flatpickr (bibliothèque externe, thème clair par défaut) */
+.dark .flatpickr-calendar {
+  background: #1F2937;
+  border-color: #374151;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.dark .flatpickr-calendar.arrowTop::after,
+.dark .flatpickr-calendar.arrowTop::before {
+  border-bottom-color: #1F2937;
+}
+
+.dark .flatpickr-calendar.arrowBottom::after,
+.dark .flatpickr-calendar.arrowBottom::before {
+  border-top-color: #1F2937;
+}
+
+.dark .flatpickr-months .flatpickr-month,
+.dark .flatpickr-current-month .flatpickr-monthDropdown-months,
+.dark .flatpickr-current-month input.cur-year,
+.dark span.flatpickr-weekday,
+.dark .flatpickr-months .flatpickr-prev-month,
+.dark .flatpickr-months .flatpickr-next-month {
+  background: transparent;
+  color: #F3F4F6;
+  fill: #F3F4F6;
+}
+
+.dark .flatpickr-current-month .flatpickr-monthDropdown-months option {
+  background: #1F2937;
+}
+
+.dark .flatpickr-day {
+  color: #E5E7EB;
+}
+
+.dark .flatpickr-day:hover,
+.dark .flatpickr-day:focus,
+.dark .flatpickr-day.inRange {
+  background: #374151;
+  border-color: #374151;
+}
+
+.dark .flatpickr-day.today {
+  border-color: #6B7280;
+}
+
+.dark .flatpickr-day.prevMonthDay,
+.dark .flatpickr-day.nextMonthDay,
+.dark .flatpickr-day.flatpickr-disabled {
+  color: #6B7280;
+}
+
+.dark .flatpickr-time input,
+.dark .flatpickr-time .flatpickr-am-pm,
+.dark .flatpickr-time .flatpickr-time-separator {
+  color: #F3F4F6;
+}
+
+.dark .flatpickr-time input:hover,
+.dark .flatpickr-time input:focus {
+  background: #374151;
+}

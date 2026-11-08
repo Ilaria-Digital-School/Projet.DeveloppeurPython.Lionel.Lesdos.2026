@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 88
+# Compatibilite black
+extend-ignore = E203, W503
+
+# Verification pragmatique : on ne bloque que les vraies erreurs
+#   F401 import inutilise        F811 redefinition
+#   F841 variable inutilisee     F821 nom indefini
+#   F822/F823 noms indefinis (__all__, usage avant affectation)
+# Le style pur (longueur de ligne, f-strings, etc.) est delegue a black/isort.
+select = F401, F811, F841, F821, F822, F823
+
+exclude =
+    .venv,
+    migrations,
+    __pycache__,
+    instance,
+    flask_session
+
+per-file-ignores =
+    # Les __init__.py re-exportent volontairement (imports "inutilises")
+    __init__.py: F401, F403
