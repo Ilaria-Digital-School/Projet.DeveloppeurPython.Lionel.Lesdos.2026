@@ -1,0 +1,41 @@
+# Verifications qualite + securite avant chaque commit.
+# Memes outils/commandes que la CI (.github/workflows/tests.yml).
+#
+# Installation (une fois) :
+#   pip install pre-commit  &&  pre-commit install
+# Les outils (black, isort, flake8, bandit) proviennent de
+# backend/requirements-dev.txt — installez-les dans votre environnement :
+#   pip install -r backend/requirements-dev.txt
+#
+# Lancer manuellement sur tout le code : pre-commit run --all-files
+
+repos:
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort (backend)
+        entry: bash -c 'cd backend && isort --check-only --profile black .'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: black
+        name: black (backend)
+        entry: bash -c 'cd backend && black --check .'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: flake8
+        name: flake8 (backend)
+        entry: bash -c 'cd backend && flake8 .'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: bandit
+        name: bandit (backend)
+        entry: bash -c 'cd backend && bandit -c pyproject.toml -r . -ll -q'
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$

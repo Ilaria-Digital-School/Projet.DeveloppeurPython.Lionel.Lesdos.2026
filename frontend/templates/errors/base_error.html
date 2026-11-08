@@ -1,0 +1,59 @@
+{# Template de base pour les pages d'erreur #}
+{% extends "base.html" %}
+
+{% block title %}{% trans %}Erreur{% endtrans %}{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        {# Icône d'erreur #}
+        <div class="error-icon">
+            <i class="{{ error_icon|default('fas fa-exclamation-triangle') }}"></i>
+        </div>
+        
+        {# Titre de l'erreur #}
+        <h1 class="error-title">
+            {% if error_title %}{{ error_title }}{% else %}{% trans %}Oups !{% endtrans %}{% endif %}
+        </h1>
+        
+        {# Code d'erreur #}
+        <div class="error-code">
+            {% trans %}Erreur{% endtrans %} {{ error_code }}
+        </div>
+        
+        {# Message d'erreur #}
+        <p class="error-message">
+            {% if error_message %}
+                {{ error_message }}
+            {% else %}
+                {% trans %}Une erreur inattendue s'est produite.{% endtrans %}
+            {% endif %}
+        </p>
+        
+        {# Bouton de retour #}
+        <div class="error-actions">
+            <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                <i class="fas fa-home"></i> {% trans %}Retour à l'accueil{% endtrans %}
+            </a>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('dashboard_bp.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-tachometer-alt"></i> {% trans %}Tableau de bord{% endtrans %}
+                </a>
+            {% endif %}
+        </div>
+        
+        {# Détails techniques (en mode debug) #}
+        {% if config.DEBUG and error %}
+            <div class="error-details mt-4">
+                <h5>{% trans %}Détails techniques{% endtrans %}</h5>
+                <pre><code>{{ error }}</code></pre>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/errors.css') }}">
+{% endblock %}

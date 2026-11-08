@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 88
+target-version = ["py314"]
+# Migrations Alembic : fichiers generes, jamais reformates (.venv exclu par defaut)
+extend-exclude = "/migrations/"
+
+[tool.isort]
+profile = "black"
+# Classification explicite : independante des paquets installes et des dossiers
+# runtime (flask_session/, instance/...) qui existent en local mais pas en CI.
+known_first_party = ["api", "app", "core", "modules", "commands", "scripts", "shared"]
+known_third_party = ["flask_session"]
+extend_skip_glob = ["*/migrations/*", "*/.venv/*"]
+
+[tool.bandit]
+# Les tests, le venv et les migrations ne sont pas du code applicatif.
+exclude_dirs = ["tests", ".venv", "migrations"]
+
+[tool.coverage.run]
+# Code applicatif mesure (scripts/ et commands/ sont des utilitaires hors perimetre)
+source = ["api", "app", "core", "modules"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# Garde-fou anti-regression : plancher sous la couverture actuelle (~60.6%).
+# A remonter au fil des tests ajoutes.
+fail_under = 60

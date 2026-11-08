@@ -1,0 +1,64 @@
+{# Template pour l'erreur 404 - Page non trouvée #}
+{% extends "errors/base_error.html" %}
+
+{% block title %}{% trans %}Page non trouvée{% endtrans %}{% endblock %}
+
+{% block content %}
+    {% set error_title = "Oups !" %}
+    {% set error_code = 404 %}
+    {% set error_icon = "fas fa-map-marker-alt" %}
+    {% 
+        set error_message %}
+            {% trans %}La page que vous recherchez semble avoir été déplacée, supprimée ou n'a jamais existé.{% endtrans %}
+            <br>
+            <small>{% trans %}Désolé pour ce désagrément.{% endtrans %}</small>
+        {% endset 
+    %}
+    {{ super() }}
+    
+    <div class="suggestions mt-4">
+        <p class="text-muted">{% trans %}Essayez de :{% endtrans %}</p>
+        <ul class="list-unstyled">
+            <li class="mb-2">
+                <i class="fas fa-arrow-circle-right text-primary"></i>
+                {% trans %}Vérifier l'orthographe de l'URL{% endtrans %}
+            </li>
+            <li class="mb-2">
+                <i class="fas fa-arrow-circle-right text-primary"></i>
+                {% trans %}Utiliser le moteur de recherche{% endtrans %}
+            </li>
+            <li>
+                <i class="fas fa-arrow-circle-right text-primary"></i>
+                {% trans %}Consulter notre page d'aide{% endtrans %}
+            </li>
+        </ul>
+    </div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .suggestions {
+        max-width: 500px;
+        margin: 0 auto;
+        text-align: left;
+        padding: 1rem;
+        background-color: rgba(0, 0, 0, 0.03);
+        border-radius: 0.5rem;
+    }
+    
+    .suggestions ul {
+        margin-top: 0.5rem;
+        padding-left: 1.5rem;
+    }
+    
+    .suggestions i {
+        margin-right: 0.5rem;
+    }
+    
+    /* Thème sombre */
+    [data-theme="dark"] .suggestions {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+</style>
+{% endblock %}

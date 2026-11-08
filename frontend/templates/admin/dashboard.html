@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Dashboard{% endblock %}
+
+{% block extra_css %}
+<!-- Token CSRF pour les requêtes AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin-common.css') }}">
+<style>
+    /* Styles spécifiques au dashboard seulement */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+  <!-- En-tête admin avec état système -->
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+        🛡️ Administration
+      </h1>
+      <p class="text-gray-600 dark:text-gray-300">Dashboard de gestion système - Connecté en tant que: <strong>{{ current_user.username }}</strong></p>
+    </div>
+    <div class="flex items-center gap-4">
+      <!-- État de santé du système -->
+      <div class="flex items-center bg-white dark:bg-gray-800 rounded-lg px-4 py-2 shadow">
+        <span class="health-indicator health-{{ system_summary.health_status|default('healthy') }}"></span>
+        <span class="text-sm font-medium">Système: <strong class="text-{{ 'green' if system_summary.health_status == 'healthy' else 'yellow' if system_summary.health_status == 'warning' else 'red' }}-600">{{ system_summary.health_status|default('Healthy')|title }}</strong></span>
+      </div>
+      <button id="refresh-metrics-btn" class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+        <i class="fas fa-sync-alt mr-2"></i> Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Accès rapide administration + alerte transactions suspectes -->
+  <div class="flex flex-wrap items-center gap-3 mb-8">
+    <a href="{{ url_for('admin.users_management') }}"
+       class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+      <i class="fas fa-users"></i> Gérer les utilisateurs
+    </a>
+    <a href="{{ url_for('admin.monitoring') }}"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+      <i class="fas fa-chart-bar"></i> Voir le monitoring
+    </a>
+    {% if suspicious_count and suspicious_count > 0 %}
+    <a href="{{ url_for('admin.monitoring') }}"
+       class="inline-flex items-center gap-2 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-200 border border-orange-300 dark:border-orange-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors duration-200">
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>{{ suspicious_count }}</strong>&nbsp;transaction(s) suspecte(s) — Vérifier
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Alertes système critiques -->
+  {% if system_summary.recent_alerts %}
+  <div class="bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 p-4 mb-6">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+      </div>
+      <div class="ml-3">
+        <p class="text-sm text-yellow-700 dark:text-yellow-300">
+          <strong>{{ system_summary.alerts.count }} alerte(s) active(s)</strong>
+          {% for alert in system_summary.recent_alerts[:3] %}
+            <br>• {{ alert.message }}
+          {% endfor %}
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Métriques système principales (nouveau) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- CPU -->
+    <div class="bg-gradient-to-br from-purple-500 to-purple-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-microchip text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.cpu_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Utilisation CPU</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.cpu_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Mémoire -->
+    <div class="bg-gradient-to-br from-pink-500 to-pink-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-memory text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.memory_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Mémoire RAM</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.memory_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Disque -->
+    <div class="bg-gradient-to-br from-cyan-500 to-cyan-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-hdd text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.disk_percent|default(0)|round(1) }}%</span>
+      </div>
+      <div class="text-sm opacity-90">Espace Disque</div>
+      <div class="metric-progress-container">
+        <div class="metric-progress-bar" style="width: {{ system_summary.system_overview.disk_percent|default(0) }}%"></div>
+      </div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="bg-gradient-to-br from-amber-500 to-amber-700 text-white rounded-xl p-6">
+      <div class="flex items-center justify-between mb-2">
+        <i class="fas fa-clock text-2xl opacity-80"></i>
+        <span class="text-3xl font-bold">{{ system_summary.system_overview.uptime_days|default(0) }}j</span>
+      </div>
+      <div class="text-sm opacity-90">Uptime Système</div>
+      <div class="text-xs opacity-70 mt-2">Démarré depuis {{ system_summary.system_overview.uptime_days|default(0) }} jours</div>
+    </div>
+  </div>
+
+  <!-- Résumé Financier (existant) -->
+  {% if financial_summary %}
+  <div class="bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl p-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.total_balance) }}€</div>
+        <div class="text-green-100">Solde Total</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.month_income) }}€</div>
+        <div class="text-green-100">Revenus du Mois</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ "%.2f"|format(financial_summary.month_expenses) }}€</div>
+        <div class="text-green-100">Dépenses du Mois</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold">{{ financial_summary.negative_accounts }}</div>
+        <div class="text-green-100">Comptes Négatifs</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Statistiques principales (mise à jour avec métriques système) -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8">
+    <div class="lg:col-span-3 xl:col-span-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Utilisateurs (amélioré) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-blue-100 dark:bg-blue-900/40 p-3 rounded-lg">
+              <i class="fas fa-users text-blue-600 dark:text-blue-400 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ system_summary.users.total|default(0) }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Utilisateurs</div>
+            </div>
+          </div>
+          <div class="text-sm text-green-600 dark:text-green-400">{{ system_summary.users.active|default(0) }} actifs maintenant</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ stats.users.new_week|default(0) }} nouveaux cette semaine</div>
+        </div>
+
+        <!-- Base de données (nouveau) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded-lg">
+              <i class="fas fa-database text-indigo-600 dark:text-indigo-400 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ "%.1f"|format(system_summary.database.size_mb|default(0)) }} MB</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Base de données</div>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ "{:,}".format(system_summary.database.total_rows|default(0)) }} enregistrements</div>
+        </div>
+
+        <!-- Comptes -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-green-100 dark:bg-green-900/40 p-3 rounded-lg">
+              <i class="fas fa-wallet text-green-600 dark:text-green-400 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ stats.accounts.total if stats.accounts else 0 }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Comptes</div>
+            </div>
+          </div>
+          {% if stats.accounts %}
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ stats.accounts.active }} actifs</div>
+          {% endif %}
+        </div>
+
+        <!-- Transactions -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-purple-100 dark:bg-purple-900/40 p-3 rounded-lg">
+              <i class="fas fa-exchange-alt text-purple-600 dark:text-purple-400 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ stats.transactions.total if stats.transactions else 0 }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Transactions</div>
+            </div>
+          </div>
+          {% if stats.transactions %}
+          <div class="text-sm text-green-600 dark:text-green-400">+{{ stats.transactions.week }} cette semaine</div>
+          {% endif %}
+        </div>
+
+
+        <!-- Alertes système (nouveau) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <div class="bg-red-100 dark:bg-red-900/40 p-3 rounded-lg">
+              <i class="fas fa-exclamation-circle text-red-600 dark:text-red-400 text-xl"></i>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ system_summary.alerts.count|default(0) }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Alertes</div>
+            </div>
+          </div>
+          <div class="text-xs text-red-600 dark:text-red-400">{{ system_summary.alerts.critical|default(0) }} critiques</div>
+          <div class="text-xs text-yellow-600 dark:text-yellow-400">{{ system_summary.alerts.warning|default(0) }} avertissements</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activité récente et actions -->
+    <div class="space-y-6">
+      <!-- Charge du serveur (mesures réelles, relevées toutes les 30 s) -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+          <i class="fas fa-chart-line mr-2 text-blue-600 dark:text-blue-400"></i> Charge du serveur
+        </h3>
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600 dark:text-gray-300">Processeur</span>
+            <span class="font-semibold" id="live-cpu">{{ system_summary.system_overview.cpu_percent|default(0)|round(1) }}%</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600 dark:text-gray-300">Mémoire</span>
+            <span class="font-semibold" id="live-memory">{{ system_summary.system_overview.memory_percent|default(0)|round(1) }}%</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-600 dark:text-gray-300">Sessions actives</span>
+            <span class="font-semibold">{{ system_summary.users.active|default(0) }}</span>
+          </div>
+        </div>
+        <div class="mt-4" style="height: 140px; position: relative;">
+          <canvas id="activityChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+let activityChart;
+// Nombre de mesures gardées dans le graphique (10 x 30 s = 5 minutes)
+const MAX_MESURES = 10;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    // Bouton « Actualiser » (addEventListener : compatible CSP stricte, pas d'onclick inline)
+    const refreshBtn = document.getElementById('refresh-metrics-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', refreshMetrics);
+    }
+    // Actualisation automatique toutes les 30 secondes
+    setInterval(refreshMetrics, 30000);
+});
+
+function heureCourante() {
+    const t = new Date();
+    return t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0') + ':' + String(t.getSeconds()).padStart(2, '0');
+}
+
+function initializeCharts() {
+    // Charge du serveur : première mesure = valeurs affichées par la page
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    activityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [heureCourante()],
+            datasets: [{
+                label: 'Processeur',
+                data: [{{ system_summary.system_overview.cpu_percent|default(0)|round(1) }}],
+                borderColor: 'rgb(168, 85, 247)',
+                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                tension: 0.3,
+                fill: true
+            }, {
+                label: 'Mémoire',
+                data: [{{ system_summary.system_overview.memory_percent|default(0)|round(1) }}],
+                borderColor: 'rgb(236, 72, 153)',
+                backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                tension: 0.3,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: { boxWidth: 10, font: { size: 10 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.dataset.label} : ${context.parsed.y} %`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: { size: 10 },
+                        maxTicksLimit: 3,
+                        callback: (value) => value + ' %'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: { size: 9 },
+                        maxTicksLimit: 4
+                    }
+                }
+            },
+            elements: {
+                point: {
+                    radius: 2,
+                    hoverRadius: 4
+                },
+                line: {
+                    borderWidth: 2
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+}
+
+function refreshMetrics() {
+    fetch('{{ url_for("api_v1.v1_admin_monitoring_summary") }}')
+        .then(response => response.json())
+        .then(data => {
+            const apercu = data.system_overview;
+            if (!apercu) return;
+            const cpu = Math.round(apercu.cpu_percent * 10) / 10;
+            const memoire = Math.round(apercu.memory_percent * 10) / 10;
+
+            document.getElementById('live-cpu').textContent = cpu + '%';
+            document.getElementById('live-memory').textContent = memoire + '%';
+
+            if (activityChart) {
+                const donnees = activityChart.data;
+                donnees.labels.push(heureCourante());
+                donnees.datasets[0].data.push(cpu);
+                donnees.datasets[1].data.push(memoire);
+                if (donnees.labels.length > MAX_MESURES) {
+                    donnees.labels.shift();
+                    donnees.datasets.forEach((serie) => serie.data.shift());
+                }
+                activityChart.update();
+            }
+        })
+        .catch(error => console.error('Erreur:', error));
+}
+
+function downloadLogs() {
+    window.location.href = '{{ url_for("api_v1.v1_admin_system_logs") }}?limit=1000';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+# Ancre commune : plafonne les journaux de chaque conteneur.
+# Sans elle, le pilote json-file de Docker ecrit sans aucune limite.
+x-logging: &journaux
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    logging: *journaux
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # Loopback uniquement : accessible depuis l'hôte (tests pytest),
+      # jamais depuis l'extérieur.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - budget_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis (sessions, cache, rate limiting)
+  # ============================================
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    logging: *journaux
+    networks:
+      - budget_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Flask / Gunicorn Application
+  # ============================================
+  app:
+    container_name: budget-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *journaux
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Sonde /healthz (app + base). Docker marque le conteneur "unhealthy" sans
+    # le redémarrer : visible dans `docker compose ps` et pour la supervision.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    volumes:
+      - app_uploads:/app/backend/instance/uploads
+      - app_logs:/app/backend/logs
+      # Bind mount du répertoire hôte servi par le reverse proxy (:ro côté nginx).
+      # Les statics modifiés sont ainsi immédiatement en ligne, et les avatars
+      # uploadés par l'app sont visibles par nginx.
+      - ./frontend/static:/app/frontend/static
+    networks:
+      budget_network: {}
+      proxy_network:
+        # proxy_network devient la passerelle par défaut : la sortie internet de
+        # l'app (SMTP OVH pour la 2FA) transite via 172.19, qui a déjà sa règle
+        # NAT/forward (certbot). budget_network (db/redis) reste isolé d'internet.
+        gw_priority: 1
+
+  # ============================================
+  # Scheduler (transactions récurrentes)
+  # ============================================
+  scheduler:
+    container_name: budget-scheduler
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging: *journaux
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["./docker/scripts/scheduler.sh"]
+    # Battement de cœur écrit après chaque passage réussi (scheduler.sh) :
+    # "unhealthy" si aucun passage n'a réussi depuis plus de 25 h
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/scheduler_heartbeat && test $$(( $$(date +%s) - $$(cat /tmp/scheduler_heartbeat) )) -lt 90000"]
+      interval: 5m
+      timeout: 10s
+      start_period: 15m
+      retries: 2
+    networks:
+      - budget_network
+
+volumes:
+  postgres_data:
+  app_uploads:
+  app_logs:
+
+networks:
+  budget_network:
+    driver: bridge
+  proxy_network:
+    external: true
